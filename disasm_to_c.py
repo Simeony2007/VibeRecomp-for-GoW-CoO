@@ -473,6 +473,13 @@ class MIPStoC:
             body_lines = self._format_function_body(start_addr, instrs)
             lines.extend(body_lines)
 
+            # Garante que a função termina com return (evita loops infinitos)
+            # Verifica se a última linha do corpo (antes do }) já termina com return
+            if body_lines:
+                last_body_line = body_lines[-1].strip()
+                if not last_body_line.endswith("return;"):
+                    lines.append("  return;  /* implicit return at end of function */")
+
             lines.append("}")
 
         with open(path, "w", encoding="utf-8") as f:

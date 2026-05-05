@@ -10,6 +10,9 @@ int compare_addrs(const void *a, const void *b) {
 }
 
 void cpu_dispatch(MIPS_CPU *cpu, uint8_t *mem, uint32_t target) {
+    
+    printf("[DISPATCH] Executando em 0x%08X\n", target);
+    printf("[DISPATCH] PC: 0x%08X | SP: 0x%08X\n", target, cpu->sp);
     // Busca binária na tabela de endereços
     uint32_t *item = bsearch(&target, psp_func_addrs, PSP_FUNC_COUNT, 
                              sizeof(uint32_t), compare_addrs);

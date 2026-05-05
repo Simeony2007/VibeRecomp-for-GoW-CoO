@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include "dispatcher.h"
 
 #ifndef PSP_STACK_TOP
 #define PSP_STACK_TOP 0x09FFF000
