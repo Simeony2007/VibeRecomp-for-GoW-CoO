@@ -150,13 +150,13 @@ class MIPStoC:
                     if self._in_code(dest):
                         self._func_starts.add(dest)
 
-                # ── Branch instructions (BEQ, BNE, BLEZ, BGTZ, BLTZ, BGEZ, etc)
+                # ── Branch instructions
                 elif op in (0x01, 0x04, 0x05, 0x06, 0x07, 0x14, 0x15, 0x16, 0x17):
                     offset = vaddr + 4 + (imms << 2)
                     if self._in_code(offset):
                         self._func_starts.add(offset)
 
-                # ── Prólogo clássico: addiu $sp, $sp, -N (potencial início de função)
+                # ── Prólogo clássico: addiu $sp, $sp, -N
                 if op == 0x09:
                     if rs == 29 and rt == 29 and imm >= 0x8000:
                         self._func_starts.add(vaddr)
@@ -192,12 +192,12 @@ class MIPStoC:
             elif fn == 0x08:   # JR
                 instr.is_jump  = True
                 instr.has_delay = True
-                if rs == 31: line = f"/* DS */ return;"
-                else:        line = f"/* DS */ CPU_JR(cpu, {reg(rs)});"
+                if rs == 31: line = f"/* DS */ cpu->pc = cpu->ra; return;"
+                else:        line = f"/* DS */ cpu->pc = {reg(rs)}; return;"
             elif fn == 0x09:   # JALR
                 instr.is_call  = True
                 instr.has_delay = True
-                line = f"/* DS */ {reg(rd)} = 0x{addr+8:08X}u; CPU_JALR(cpu, {reg(rs)});"
+                line = f"/* DS */ {reg(rd)} = 0x{addr+8:08X}u; cpu->pc = {reg(rs)}; return;"
             elif fn == 0x0C:   # SYSCALL
                 code = (raw >> 6) & 0xFFFFF
                 line = f"CPU_SYSCALL(cpu, 0x{code:05X});"
@@ -232,7 +232,7 @@ class MIPStoC:
             elif fn == 0x17: line = f"{reg(rd)} = __builtin_ctz({reg(rs)});"  # CLO (aproximado)
             elif fn == 0x28: line = f"{reg(rd)} = ({reg(rs)} == 0) ? {reg(rt)} : {reg(rd)};"  # MOVZ
             elif fn == 0x29: line = f"{reg(rd)} = ({reg(rs)} != 0) ? {reg(rt)} : {reg(rd)};"  # MOVN
-            elif fn == 0x2C: line = f"{{ int64_t _m=(int64_t)(int32_t){reg(rs)}*(int64_t)(int32_t){reg(rt)}; {reg(rd)}=(uint32_t)(_m>>32); }}"  # MADD (simplificado)
+            elif fn == 0x2C: line = f"{{ int64_t _m=(int64_t)(int32_t){reg(rs)}*(int64_t)(int32_t){reg(rt)}; {reg(rd)}=(uint32_t)(_m>>32); }}"  # MADD
 
         elif op == 0x01:  # REGIMM
             offset = addr + 4 + (imms << 2)
@@ -252,7 +252,7 @@ class MIPStoC:
             instr.is_jump   = True
             instr.has_delay = True
             if dest in self._func_starts:
-                line = f"/* DS */ func_{dest:08X}(cpu, mem); return;"
+                line = f"/* DS */ cpu->pc = 0x{dest:08X}u; return;"
             else:
                 line = f"/* DS */ goto loc_{dest:08X};"
 
@@ -260,28 +260,29 @@ class MIPStoC:
             dest = self._load_base + (instr.target26 << 2)
             instr.is_call   = True
             instr.has_delay = True
-            line = f"cpu->ra=0x{addr+8:08X}u; /* DS */ func_{dest:08X}(cpu, mem);"
+            line = f"cpu->ra=0x{addr+8:08X}u; /* DS */ cpu->pc = 0x{dest:08X}u; return;"
 
         elif op == 0x04:  # BEQ
             offset = addr + 4 + (imms << 2)
             instr.is_branch = True
             instr.has_delay = True
             if rs == 0 and rt == 0:
-                line = f"/* DS */ goto loc_{offset:08X};"
+                line = f"/* DS */ cpu->pc = 0x{offset:08X}u; return;"
             else:
                 if offset in self._func_starts:
-                    line = f"if ({reg(rs)} == {reg(rt)}) {{ /* DS */ func_{offset:08X}(cpu, mem); return; }}"
+                    line = f"if ({reg(rs)} == {reg(rt)}) {{ /* DS */ cpu->pc = 0x{offset:08X}u; return; }}"
                 else:
                     line = f"if ({reg(rs)} == {reg(rt)}) {{ /* DS */ goto loc_{offset:08X}; }}"
-        elif op == 0x14:  # BEQL (Branch on Equal Likely)
+
+        elif op == 0x14:  # BEQL
             offset = addr + 4 + (imms << 2)
             instr.is_branch = True
             instr.has_delay = True
             if rs == 0 and rt == 0:
-                line = f"/* DS likely */ goto loc_{offset:08X};"
+                line = f"/* DS likely */ cpu->pc = 0x{offset:08X}u; return;"
             else:
                 if offset in self._func_starts:
-                    line = f"if ({reg(rs)} == {reg(rt)}) {{ /* DS */ func_{offset:08X}(cpu, mem); return; }}"
+                    line = f"if ({reg(rs)} == {reg(rt)}) {{ /* DS */ cpu->pc = 0x{offset:08X}u; return; }}"
                 else:
                     line = f"if ({reg(rs)} == {reg(rt)}) {{ /* DS */ goto loc_{offset:08X}; }}"
 
@@ -303,8 +304,14 @@ class MIPStoC:
             instr.has_delay = True
             line = f"if ((int32_t){reg(rs)} > 0) {{ /* DS */ goto loc_{offset:08X}; }}"
 
-        elif op == 0x08: line = f"{reg(rt)} = (uint32_t)((int32_t){reg(rs)}+{imms});"  # ADDI
-        elif op == 0x09: line = f"{reg(rt)} = {reg(rs)} + (uint32_t){imms & 0xFFFFFFFF}u;"  # ADDIU
+        elif op == 0x08:  # ADDI (Limpeza visual para valores negativos)
+            if imms < 0: line = f"{reg(rt)} = (uint32_t)((int32_t){reg(rs)} - {-imms});"
+            else:        line = f"{reg(rt)} = (uint32_t)((int32_t){reg(rs)} + {imms});"
+            
+        elif op == 0x09:  # ADDIU (Limpeza visual para operações na pilha)
+            if imms < 0: line = f"{reg(rt)} = {reg(rs)} - {-imms};"
+            else:        line = f"{reg(rt)} = {reg(rs)} + {imms};"
+            
         elif op == 0x0A: line = f"{reg(rt)} = ((int32_t){reg(rs)} < {imms}) ? 1 : 0;"  # SLTI
         elif op == 0x0B: line = f"{reg(rt)} = ({reg(rs)} < {imm}u) ? 1 : 0;"           # SLTIU
         elif op == 0x0C: line = f"{reg(rt)} = {reg(rs)} & 0x{imm:04X}u;"               # ANDI
@@ -390,7 +397,7 @@ class MIPStoC:
 
             line = instr.c_line or ""
 
-            # Transforma goto para fora da função em chamadas reais e return
+            # Transforma goto para fora da função em alteração de PC e retorno limpo
             m = re.search(r'goto loc_([0-9A-Fa-f]{8})', line)
             if m:
                 target = int(m.group(1), 16)
@@ -398,7 +405,7 @@ class MIPStoC:
                 if not inside:
                     line = re.sub(
                         r'goto loc_([0-9A-Fa-f]{8});?',
-                        lambda m: f'func_{m.group(1).upper()}(cpu, mem); return;',
+                        lambda m: f'cpu->pc = 0x{m.group(1).upper()}u; return;',
                         line
                     )
 
@@ -410,45 +417,25 @@ class MIPStoC:
 
             branch_line = branch_line.strip()
 
-            # Descartar linhas de código inválido, dados ou chamadas para funções inexistentes
+            # Descartar linhas de código inválido
             is_invalid = "UNKNOWN" in branch_line or addr > 0x0A000000
 
-            # 1. Identifica se a linha tem referências a funções ou labels
-            func_refs = re.findall(r'func_([0-9A-Fa-f]{8})', branch_line)
-            loc_refs = re.findall(r'loc_([0-9A-Fa-f]{8})', branch_line)
-            
-            # 2. Verifica se as funções chamadas realmente foram descobertas no Passe 1
             if not is_invalid:
-                for f_addr_hex in func_refs:
-                    f_addr = int(f_addr_hex, 16)
-                    if f_addr not in self._func_starts:
-                        is_invalid = True
-                        break
-
-            # 3. Verifica se as labels de destino existem DENTRO desta função específica
-            if not is_invalid:
+                loc_refs = re.findall(r'loc_([0-9A-Fa-f]{8})', branch_line)
                 for l_addr_hex in loc_refs:
                     l_addr = int(l_addr_hex, 16)
                     if l_addr not in instr_addrs:
                         is_invalid = True
                         break
 
-            # 4. Se for inválido, comenta a linha inteira para o GCC não tentar compilar
             if is_invalid:
                 clean_line = branch_line.replace("/*", "").replace("*/", "").strip()
                 branch_line = f"/* Skip invalid/data @ 0x{addr:08X}: {clean_line} */"
 
-            # Sanitização robusta: garantir sintaxe C correta
-            # 1. Garantir que 'return' sempre tem ';'
+            # Sanitização robusta
             branch_line = re.sub(r'\breturn\b(?!\s*;)', 'return;', branch_line)
-            
-            # 2. Remover `;` duplicados
             branch_line = re.sub(r';\s*;', ';', branch_line)
-            
-            # 3. Garantir `;` antes de `}`
             branch_line = re.sub(r'([^;{}\s])\s*}', r'\1; }', branch_line)
-            
-            # 4. Limpar espaços extras
             branch_line = re.sub(r'\s+', ' ', branch_line)
 
             lines.append(f"  {branch_line}  /* 0x{raw_hex(instr.raw)} */")
@@ -469,16 +456,15 @@ class MIPStoC:
             lines.append(f"\n/* ===== {fname} ===== */")
             lines.append(f"void {fname}(MIPS_CPU *cpu, uint8_t *mem) {{")
             
-            # Incorpora as instruções processadas de _format_function_body
             body_lines = self._format_function_body(start_addr, instrs)
             lines.extend(body_lines)
 
-            # Garante que a função termina com return (evita loops infinitos)
-            # Verifica se a última linha do corpo (antes do }) já termina com return
+            # Garante que a função não acabe sem avançar o PC
             if body_lines:
                 last_body_line = body_lines[-1].strip()
                 if not last_body_line.endswith("return;"):
-                    lines.append("  return;  /* implicit return at end of function */")
+                    lines.append("  cpu->pc += 4; // Avança o PC caso não tenha havido salto")
+                    lines.append("  return;")
 
             lines.append("}")
 
@@ -487,7 +473,6 @@ class MIPStoC:
 
     # ── Gera tabela de funções (Sólido) ────────────────────────────────────
     def _emit_table(self, func_entries):
-        # ── HEADER (.h)
         h = [
             "#pragma once",
             '#include "runtime/cpu.h"',
@@ -509,7 +494,6 @@ class MIPStoC:
         with open(os.path.join(OUT_DIR, "func_table.h"), "w") as f:
             f.write("\n".join(h))
 
-        # ── SOURCE (.c)
         c = [
             '#include "func_table.h"',
             "",
@@ -530,16 +514,14 @@ class MIPStoC:
         with open(os.path.join(OUT_DIR, "func_table.c"), "w") as f:
             f.write("\n".join(c))
 
-    # ── Pipeline principal (Ordem Corrigida) ───────────────────────────────
+    # ── Pipeline principal ───────────────────────────────
     def run(self):
-        # 1. Executar descoberta primeiro
         self._discover_functions()
 
         group_size = 100
         group = []
         group_id = 0
         
-        # 2. Tuplas em vez de array solto garantem que as tabelas extraiam os bytes corretos
         func_entries = []
 
         for i, start in enumerate(sorted(self._func_starts)):
@@ -559,7 +541,6 @@ class MIPStoC:
         if group:
             self._emit_group(group_id, group)
 
-        # 3. Processar tabela por último
         self._emit_table(func_entries)
 
 if __name__ == "__main__":
