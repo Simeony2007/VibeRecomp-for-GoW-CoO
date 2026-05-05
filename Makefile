@@ -51,7 +51,8 @@ LDFLAGS_ARM64 := -Wl,--gc-sections -lm
 RUNTIME_SRCS := \
     runtime/memory.c \
     runtime/syscalls.c \
-    runtime/loader.c
+    runtime/loader.c \
+    runtime/dispatcher.c
 
 OUT_SRCS     := $(wildcard out/funcs/*.c) out/func_table.c
 

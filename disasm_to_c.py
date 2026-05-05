@@ -410,9 +410,33 @@ class MIPStoC:
 
             branch_line = branch_line.strip()
 
-            # Descartar linhas de código inválido ou dados interpretados como código
-            if "UNKNOWN" in branch_line or addr > 0x0A000000:
-                branch_line = f"/* Skip invalid/data @ 0x{addr:08X}: {branch_line} */"
+            # Descartar linhas de código inválido, dados ou chamadas para funções inexistentes
+            is_invalid = "UNKNOWN" in branch_line or addr > 0x0A000000
+
+            # 1. Identifica se a linha tem referências a funções ou labels
+            func_refs = re.findall(r'func_([0-9A-Fa-f]{8})', branch_line)
+            loc_refs = re.findall(r'loc_([0-9A-Fa-f]{8})', branch_line)
+            
+            # 2. Verifica se as funções chamadas realmente foram descobertas no Passe 1
+            if not is_invalid:
+                for f_addr_hex in func_refs:
+                    f_addr = int(f_addr_hex, 16)
+                    if f_addr not in self._func_starts:
+                        is_invalid = True
+                        break
+
+            # 3. Verifica se as labels de destino existem DENTRO desta função específica
+            if not is_invalid:
+                for l_addr_hex in loc_refs:
+                    l_addr = int(l_addr_hex, 16)
+                    if l_addr not in instr_addrs:
+                        is_invalid = True
+                        break
+
+            # 4. Se for inválido, comenta a linha inteira para o GCC não tentar compilar
+            if is_invalid:
+                clean_line = branch_line.replace("/*", "").replace("*/", "").strip()
+                branch_line = f"/* Skip invalid/data @ 0x{addr:08X}: {clean_line} */"
 
             # Sanitização robusta: garantir sintaxe C correta
             # 1. Garantir que 'return' sempre tem ';'
