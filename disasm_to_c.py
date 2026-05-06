@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-disasm_to_c.py - Traduz código MIPS Allegrex (PSP) para C portável.
+disasm_to_c.py - Traduz código MIPS Allegrex (PSP) para C portável, com injeção HLE.
 """
 
 import struct
@@ -8,11 +8,13 @@ import sys
 import os
 import json
 import re
+import gzip
 from concurrent.futures import ThreadPoolExecutor
 
 # ─── Configurações ─────────────────────────────────────────────────────────────
 META_JSON      = "elf_meta.json"
 IMAGE_BIN      = "elf_meta_image.bin"
+PPMAP_FILE     = "gow.ppmap"  # <<< COLOQUE O NOME DO SEU ARQUIVO PPMAP ORIGINAL AQUI!
 OUT_DIR        = "out"
 FUNCS_DIR      = os.path.join(OUT_DIR, "funcs")
 MAX_FUNC_LINES = 8000
@@ -76,6 +78,9 @@ class MIPStoC:
         self._code_segs   = self._meta["code_segments"]
         self._stubs       = {s["vaddr"]: s["module"] for s in self._meta.get("syscall_stubs", [])}
         self._func_starts = set()
+        
+        self.syscall_map  = {}
+        self._load_symbols()
 
         if os.path.isdir(FUNCS_DIR):
             for filename in os.listdir(FUNCS_DIR):
@@ -86,6 +91,46 @@ class MIPStoC:
             path = os.path.join(OUT_DIR, filename)
             if os.path.exists(path):
                 os.unlink(path)
+
+    def _load_symbols(self):
+        # 1. A NOSSA LISTA VIP (Engenharia Reversa Manual)
+        # Endereços já ajustados para o PRX original
+        self.syscall_map[0x08B01DF4] = "sceKernelSetCompiledSdkVersion"
+        self.syscall_map[0x08B01D64] = "sceKernelCreateThread"
+        self.syscall_map[0x08B01D14] = "sceKernelStartThread"
+        self.syscall_map[0x08B01ED4] = "sceIoDread"
+        
+        count = 4 # Já começamos com as 4 vitais
+        
+        SYMBOL_FILE = "gow.sym" 
+        if not os.path.exists(SYMBOL_FILE):
+            print(f"[AVISO] {SYMBOL_FILE} nao encontrado! Usando apenas Lista VIP.")
+            return
+            
+        print(f"[disasm] Carregando simbolos de {SYMBOL_FILE}...")
+        
+        with open(SYMBOL_FILE, "rt", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) >= 2:
+                    try:
+                        addr = int(parts[0], 16)
+                        raw_name = parts[-1].split(',')[0] 
+                        addr -= 0x4000
+                        
+                        # 2. LIMPEZA AGRESSIVA: Remove todos os 'z' e '_' do começo do nome
+                        name = raw_name.lstrip("z_")
+                        
+                        if name.startswith("sce") or "Thread" in name or "Module" in name:
+                            # Se não for um dos VIPs que já mapeamos, adiciona!
+                            if addr not in self.syscall_map:
+                                self.syscall_map[addr] = name
+                                count += 1
+                    except (ValueError, IndexError):
+                        continue
+                        
+        print(f"[disasm] {count} Syscalls mapeadas com sucesso!")
+
 
     def _read32(self, vaddr):
         for seg in self._code_segs:
@@ -106,6 +151,10 @@ class MIPStoC:
         print("[disasm] Passe 1: descobrindo funções...")
         self._func_starts.add(self._entry)
         for vaddr in self._stubs: self._func_starts.add(vaddr)
+        
+        # Adiciona também todas as funções mapeadas pelo PPMAP
+        for vaddr in self.syscall_map.keys():
+            self._func_starts.add(vaddr)
 
         for seg in self._code_segs:
             vaddr = seg["vaddr"]
@@ -118,7 +167,6 @@ class MIPStoC:
                 op, rt, rs, imm = (raw >> 26) & 0x3F, (raw >> 16) & 0x1F, (raw >> 21) & 0x1F, raw & 0xFFFF
                 imms = imm if imm < 0x8000 else imm - 0x10000
 
-                # CORREÇÃO PRX AQUI (Descoberta)
                 if op in (0x02, 0x03):
                     dest = self._load_base | ((raw & 0x03FFFFFF) << 2)
                     if self._in_code(dest): self._func_starts.add(dest)
@@ -187,7 +235,6 @@ class MIPStoC:
                 instr.is_call = True
                 line = f"if ((int32_t){reg(rs)} >= 0) {{ cpu->ra=0x{addr+8:08X}u; /* DS */ goto loc_{offset:08X}; }}"
 
-        # CORREÇÃO PRX AQUI (Decodificação J/JAL)
         elif op == 0x02:
             dest = self._load_base | (instr.target26 << 2)
             instr.is_jump, instr.has_delay = True, True
@@ -221,7 +268,8 @@ class MIPStoC:
         elif op == 0x08: line = f"{reg(rt)} = (uint32_t)((int32_t){reg(rs)} - {-imms});" if imms < 0 else f"{reg(rt)} = (uint32_t)((int32_t){reg(rs)} + {imms});"
         elif op == 0x09: line = f"{reg(rt)} = {reg(rs)} - {-imms};" if imms < 0 else f"{reg(rt)} = {reg(rs)} + {imms};"
         elif op == 0x0A: line = f"{reg(rt)} = ((int32_t){reg(rs)} < {imms}) ? 1 : 0;"
-        elif op == 0x0B: line = f"{reg(rt)} = ({reg(rs)} < (uint32_t){imms}) ? 1 : 0;"        elif op == 0x0C: line = f"{reg(rt)} = {reg(rs)} & 0x{imm:04X}u;"
+        elif op == 0x0B: line = f"{reg(rt)} = ({reg(rs)} < (uint32_t){imms}) ? 1 : 0;"
+        elif op == 0x0C: line = f"{reg(rt)} = {reg(rs)} & 0x{imm:04X}u;"
         elif op == 0x0D: line = f"{reg(rt)} = {reg(rs)} | 0x{imm:04X}u;"
         elif op == 0x0E: line = f"{reg(rt)} = {reg(rs)} ^ 0x{imm:04X}u;"
         elif op == 0x0F: line = f"{reg(rt)} = 0x{imm:04X}u << 16;"
@@ -260,6 +308,17 @@ class MIPStoC:
         return instrs
 
     def _format_function_body(self, start_addr, instrs):
+        # 🔥 A MÁGICA DA INJEÇÃO HLE 🔥
+        if start_addr in self.syscall_map:
+            name = self.syscall_map[start_addr]
+            lines = [
+                f"  // [HLE] Injeção Direta de Syscall: {name}",
+                f"  cpu->pc = cpu->ra; // Default: volta pra quem chamou",
+                f'  psp_syscall(cpu, mem, "{name}"); // Chama a Syscall (pode sobrescrever o PC)',
+                f"  return;"
+            ]
+            return lines, []
+
         lines, instr_addrs, emitted_addrs = [], {i.addr for i in instrs}, []
 
         for i, instr in enumerate(instrs):
@@ -338,7 +397,16 @@ class MIPStoC:
         print(f"[Thread] Arquivo funcs_{group_id:03d}.c gerado com sucesso.")
 
     def _emit_table(self, func_entries):
-        h = ["#pragma once", '#include "runtime/cpu.h"', "", "typedef void (*PSPFunc)(MIPS_CPU *cpu, uint8_t *mem);", "", "extern uint32_t psp_func_addrs[];"]
+        h = [
+            "#pragma once", 
+            '#include "runtime/cpu.h"', 
+            "", 
+            "typedef void (*PSPFunc)(MIPS_CPU *cpu, uint8_t *mem);", 
+            "", 
+            "extern uint32_t psp_func_addrs[];",
+            "// Assinatura global da Syscall (Injetada automaticamente)",
+            "void psp_syscall(MIPS_CPU *cpu, uint8_t *mem, const char *name);"
+        ]
         unique_func_names = sorted(list(set(name for _, name in func_entries)))
         h.extend([f"void {name}(MIPS_CPU *cpu, uint8_t *mem);" for name in unique_func_names])
         h.extend(["", "extern PSPFunc psp_func_table[];", f"#define PSP_FUNC_COUNT {len(func_entries)}"])

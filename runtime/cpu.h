@@ -26,7 +26,7 @@ typedef struct __attribute__((aligned(16))) {
 
 /* ── Protótipos de Funções de Suporte ────────────────────────────────────── */
 void dispatcher(MIPS_CPU *cpu, uint8_t *mem, uint32_t target);
-void psp_syscall(MIPS_CPU *cpu, uint8_t *mem, uint32_t code);
+void psp_syscall(MIPS_CPU *cpu, uint8_t *mem, const char *name);
 
 /* ── Inicialização ───────────────────────────────────────────────────────── */
 static inline void cpu_init(MIPS_CPU *cpu, uint32_t entry, uint32_t sp_val) {
@@ -53,4 +53,8 @@ static inline void cpu_init(MIPS_CPU *cpu, uint32_t entry, uint32_t sp_val) {
         return; \
     } while(0)
 
-#define CPU_SYSCALL(cpu, code) psp_syscall(cpu, mem, code)
+// Altere a macro existente para isto:
+#define CPU_SYSCALL(cpu, code) psp_syscall_mips(cpu, mem, code)
+
+// Adicione a declaração da nova função (junto da outra psp_syscall):
+void psp_syscall_mips(MIPS_CPU *cpu, uint8_t *mem, uint32_t code);
