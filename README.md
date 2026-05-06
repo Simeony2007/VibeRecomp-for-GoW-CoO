@@ -218,3 +218,5 @@ cat elf_meta.json | grep entry
 
 Este projeto é apenas para fins educacionais e de preservação.
 Requer que você possua uma cópia legítima do jogo.
+
+TODOS OS CÓDIGOS SÃO GERADOS POR IA, EU APENAS ORGANIZO E COMANDO O PROCESSO DE CRIAÇÃO E DEBUGGING.
