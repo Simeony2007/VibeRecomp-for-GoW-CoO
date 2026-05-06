@@ -25,7 +25,7 @@ typedef struct __attribute__((aligned(16))) {
 } MIPS_CPU;
 
 /* ── Protótipos de Funções de Suporte ────────────────────────────────────── */
-void cpu_dispatch(MIPS_CPU *cpu, uint8_t *mem, uint32_t target);
+void dispatcher(MIPS_CPU *cpu, uint8_t *mem, uint32_t target);
 void psp_syscall(MIPS_CPU *cpu, uint8_t *mem, uint32_t code);
 
 /* ── Inicialização ───────────────────────────────────────────────────────── */

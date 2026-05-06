@@ -1,14 +1,6 @@
 #!/usr/bin/env python3
 """
 disasm_to_c.py - Traduz código MIPS Allegrex (PSP) para C portável.
-
-Lê o elf_meta.json + elf_meta_image.bin gerados pelo parse_elf.py
-(que já têm as relocações aplicadas) e produz:
-  - out/funcs/funcs_XXX.c       (arquivos contendo grupos de funções)
-  - out/func_table.c            (tabela de ponteiros)
-  - out/func_table.h            (declarações)
-
-Uso: python3 disasm_to_c.py
 """
 
 import struct
@@ -16,13 +8,14 @@ import sys
 import os
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 
 # ─── Configurações ─────────────────────────────────────────────────────────────
 META_JSON      = "elf_meta.json"
 IMAGE_BIN      = "elf_meta_image.bin"
 OUT_DIR        = "out"
 FUNCS_DIR      = os.path.join(OUT_DIR, "funcs")
-MAX_FUNC_LINES = 3000
+MAX_FUNC_LINES = 8000
 
 # ─── Nomes dos registradores MIPS ─────────────────────────────────────────────
 REG = [
@@ -35,8 +28,7 @@ REG = [
 ]
 
 def reg(n):
-    if n == 0:
-        return "cpu->zero"  # O "buraco negro" de leitura!
+    if n == 0: return "cpu->zero"
     return f"cpu->{REG[n]}"
 
 def imm_s16(imm16):
@@ -45,7 +37,6 @@ def imm_s16(imm16):
 def raw_hex(raw):
     return f"{raw:08X}"
 
-# ─── Instrução decodificada ────────────────────────────────────────────────────
 class Instr:
     __slots__ = ("addr","raw","op","rs","rt","rd","shamt","funct",
                  "imm","imm_s","target26","is_branch","is_jump",
@@ -69,16 +60,10 @@ class Instr:
         self.has_delay  = False
         self.c_line     = ""
 
-# ─── Tradutor ──────────────────────────────────────────────────────────────────
 class MIPStoC:
     def __init__(self):
-        if not os.path.exists(META_JSON):
-            print(f"ERRO: {META_JSON} não encontrado!")
-            print("Rode primeiro: python3 parse_elf.py EBOOT.BIN")
-            sys.exit(1)
-        if not os.path.exists(IMAGE_BIN):
-            print(f"ERRO: {IMAGE_BIN} não encontrado!")
-            print("Rode primeiro: python3 parse_elf.py EBOOT.BIN")
+        if not os.path.exists(META_JSON) or not os.path.exists(IMAGE_BIN):
+            print("ERRO: Arquivos meta não encontrados.")
             sys.exit(1)
 
         with open(META_JSON) as f:
@@ -89,38 +74,38 @@ class MIPStoC:
         self._entry       = self._meta["entry"]
         self._load_base   = self._meta["load_base"]
         self._code_segs   = self._meta["code_segments"]
-        self._stubs       = {s["vaddr"]: s["module"]
-                             for s in self._meta.get("syscall_stubs", [])}
+        self._stubs       = {s["vaddr"]: s["module"] for s in self._meta.get("syscall_stubs", [])}
         self._func_starts = set()
 
+        if os.path.isdir(FUNCS_DIR):
+            for filename in os.listdir(FUNCS_DIR):
+                if filename.endswith('.c') or filename.endswith('.h'):
+                    os.unlink(os.path.join(FUNCS_DIR, filename))
         os.makedirs(FUNCS_DIR, exist_ok=True)
+        for filename in ('func_table.c', 'func_table.h'):
+            path = os.path.join(OUT_DIR, filename)
+            if os.path.exists(path):
+                os.unlink(path)
 
-    # ── Leitura da imagem relocada ─────────────────────────────────────────
     def _read32(self, vaddr):
         for seg in self._code_segs:
             start = seg["vaddr"]
             end   = start + seg["size"]
             if start <= vaddr < end:
                 file_off = seg["offset"] + (vaddr - start)
-                # Proteção contra leitura inválida
-                if file_off < 0 or file_off + 4 > len(self._image):
-                    return None
+                if file_off < 0 or file_off + 4 > len(self._image): return None
                 return struct.unpack_from("<I", self._image, file_off)[0]
         return None
 
     def _in_code(self, vaddr):
         for seg in self._code_segs:
-            if seg["vaddr"] <= vaddr < seg["vaddr"] + seg["size"]:
-                return True
+            if seg["vaddr"] <= vaddr < seg["vaddr"] + seg["size"]: return True
         return False
 
-    # ── Passe 1: descobre inícios de funções ──────────────────────────────
     def _discover_functions(self):
         print("[disasm] Passe 1: descobrindo funções...")
         self._func_starts.add(self._entry)
-
-        for vaddr in self._stubs:
-            self._func_starts.add(vaddr)
+        for vaddr in self._stubs: self._func_starts.add(vaddr)
 
         for seg in self._code_segs:
             vaddr = seg["vaddr"]
@@ -128,421 +113,272 @@ class MIPStoC:
             while vaddr < end:
                 raw = self._read32(vaddr)
                 if raw is None:
-                    vaddr += 4
-                    continue
+                    vaddr += 4; continue
 
-                op    = (raw >> 26) & 0x3F
-                rt    = (raw >> 16) & 0x1F
-                rs    = (raw >> 21) & 0x1F
-                funct = raw & 0x3F
-                imm   = raw & 0xFFFF
-                imms  = imm if imm < 0x8000 else imm - 0x10000
+                op, rt, rs, imm = (raw >> 26) & 0x3F, (raw >> 16) & 0x1F, (raw >> 21) & 0x1F, raw & 0xFFFF
+                imms = imm if imm < 0x8000 else imm - 0x10000
 
-                # ── JAL (Direct call)
-                if op == 0x03:
-                    dest = self._load_base + ((raw & 0x03FFFFFF) << 2)
-                    if self._in_code(dest):
-                        self._func_starts.add(dest)
-
-                # ── J (Direct jump)
-                elif op == 0x02:
-                    dest = self._load_base + ((raw & 0x03FFFFFF) << 2)
-                    if self._in_code(dest):
-                        self._func_starts.add(dest)
-
-                # ── Branch instructions
+                # CORREÇÃO PRX AQUI (Descoberta)
+                if op in (0x02, 0x03):
+                    dest = self._load_base | ((raw & 0x03FFFFFF) << 2)
+                    if self._in_code(dest): self._func_starts.add(dest)
                 elif op in (0x01, 0x04, 0x05, 0x06, 0x07, 0x14, 0x15, 0x16, 0x17):
                     offset = vaddr + 4 + (imms << 2)
-                    if self._in_code(offset):
-                        self._func_starts.add(offset)
-
-                # ── Prólogo clássico: addiu $sp, $sp, -N
-                if op == 0x09:
-                    if rs == 29 and rt == 29 and imm >= 0x8000:
-                        self._func_starts.add(vaddr)
+                    if self._in_code(offset): self._func_starts.add(offset)
+                elif op == 0x09 and rs == 29 and rt == 29 and imm >= 0x8000:
+                    self._func_starts.add(vaddr)
 
                 vaddr += 4
-
         print(f"[disasm] {len(self._func_starts)} funções encontradas.")
 
-    # ── Decoder de instrução ───────────────────────────────────────────────
     def _decode(self, instr: Instr):
-        op   = instr.op
-        rs   = instr.rs
-        rt   = instr.rt
-        rd   = instr.rd
-        sa   = instr.shamt
-        fn   = instr.funct
-        imm  = instr.imm
-        imms = instr.imm_s
-        addr = instr.addr
-        raw  = instr.raw
-
+        op, rs, rt, rd, sa, fn = instr.op, instr.rs, instr.rt, instr.rd, instr.shamt, instr.funct
+        imm, imms, addr, raw = instr.imm, instr.imm_s, instr.addr, instr.raw
         line = ""
 
-        if op == 0x00:   # SPECIAL
-            if   fn == 0x00:
-                if raw == 0: line = "/* nop */"
-                else: line = f"{reg(rd)} = (uint32_t){reg(rt)} << {sa};"        # SLL
-            elif fn == 0x02: line = f"{reg(rd)} = (uint32_t){reg(rt)} >> {sa};"  # SRL
-            elif fn == 0x03: line = f"{reg(rd)} = (int32_t){reg(rt)} >> {sa};"   # SRA
-            elif fn == 0x04: line = f"{reg(rd)} = (uint32_t){reg(rt)} << ({reg(rs)} & 31);"  # SLLV
-            elif fn == 0x06: line = f"{reg(rd)} = (uint32_t){reg(rt)} >> ({reg(rs)} & 31);"  # SRLV
-            elif fn == 0x07: line = f"{reg(rd)} = (int32_t){reg(rt)} >> ({reg(rs)} & 31);"   # SRAV
-            elif fn == 0x08:   # JR
-                instr.is_jump  = True
-                instr.has_delay = True
-                if rs == 31: line = f"/* DS */ cpu->pc = cpu->ra; return;"
-                else:        line = f"/* DS */ cpu->pc = {reg(rs)}; return;"
-            elif fn == 0x09:   # JALR
-                instr.is_call  = True
-                instr.has_delay = True
+        if op == 0x00:
+            if   fn == 0x00: line = "/* nop */" if raw == 0 else f"{reg(rd)} = (uint32_t){reg(rt)} << {sa};"
+            elif fn == 0x02: line = f"{reg(rd)} = (uint32_t){reg(rt)} >> {sa};"
+            elif fn == 0x03: line = f"{reg(rd)} = (int32_t){reg(rt)} >> {sa};"
+            elif fn == 0x04: line = f"{reg(rd)} = (uint32_t){reg(rt)} << ({reg(rs)} & 31);"
+            elif fn == 0x06: line = f"{reg(rd)} = (uint32_t){reg(rt)} >> ({reg(rs)} & 31);"
+            elif fn == 0x07: line = f"{reg(rd)} = (int32_t){reg(rt)} >> ({reg(rs)} & 31);"
+            elif fn == 0x08:
+                instr.is_jump, instr.has_delay = True, True
+                line = f"/* DS */ cpu->pc = cpu->ra; return;" if rs == 31 else f"/* DS */ cpu->pc = {reg(rs)}; return;"
+            elif fn == 0x09:
+                instr.is_call, instr.has_delay = True, True
                 line = f"/* DS */ {reg(rd)} = 0x{addr+8:08X}u; cpu->pc = {reg(rs)}; return;"
-            elif fn == 0x0C:   # SYSCALL
-                code = (raw >> 6) & 0xFFFFF
-                line = f"CPU_SYSCALL(cpu, 0x{code:05X});"
+            elif fn == 0x0C: code = (raw >> 6) & 0xFFFFF; line = f"CPU_SYSCALL(cpu, 0x{code:05X});"
             elif fn == 0x0F: line = "/* sync */"
-            elif fn == 0x10: line = f"{reg(rd)} = cpu->hi;"   # MFHI
-            elif fn == 0x11: line = f"cpu->hi = {reg(rs)};"   # MTHI
-            elif fn == 0x12: line = f"{reg(rd)} = cpu->lo;"   # MFLO
-            elif fn == 0x13: line = f"cpu->lo = {reg(rs)};"   # MTLO
-            elif fn == 0x18:
-                line = (f"{{ int64_t _m = (int64_t)(int32_t){reg(rs)} * (int64_t)(int32_t){reg(rt)}; "
-                        f"cpu->lo=(uint32_t)_m; cpu->hi=(uint32_t)(_m>>32); }}")  # MULT
-            elif fn == 0x19:
-                line = (f"{{ uint64_t _m = (uint64_t){reg(rs)} * (uint64_t){reg(rt)}; "
-                        f"cpu->lo=(uint32_t)_m; cpu->hi=(uint32_t)(_m>>32); }}")  # MULTU
-            elif fn == 0x1A:
-                line = (f"if ({reg(rt)}) {{ cpu->lo=(uint32_t)((int32_t){reg(rs)}/(int32_t){reg(rt)}); "
-                        f"cpu->hi=(uint32_t)((int32_t){reg(rs)}%(int32_t){reg(rt)}); }}")  # DIV
-            elif fn == 0x1B:
-                line = (f"if ({reg(rt)}) {{ cpu->lo={reg(rs)}/{reg(rt)}; "
-                        f"cpu->hi={reg(rs)}%{reg(rt)}; }}")  # DIVU
-            elif fn == 0x20: line = f"{reg(rd)} = (uint32_t)((int32_t){reg(rs)}+(int32_t){reg(rt)});"  # ADD
-            elif fn == 0x21: line = f"{reg(rd)} = {reg(rs)} + {reg(rt)};"   # ADDU
-            elif fn == 0x22: line = f"{reg(rd)} = (uint32_t)((int32_t){reg(rs)}-(int32_t){reg(rt)});"  # SUB
-            elif fn == 0x23: line = f"{reg(rd)} = {reg(rs)} - {reg(rt)};"   # SUBU
-            elif fn == 0x24: line = f"{reg(rd)} = {reg(rs)} & {reg(rt)};"   # AND
-            elif fn == 0x25: line = f"{reg(rd)} = {reg(rs)} | {reg(rt)};"   # OR
-            elif fn == 0x26: line = f"{reg(rd)} = {reg(rs)} ^ {reg(rt)};"   # XOR
-            elif fn == 0x27: line = f"{reg(rd)} = ~({reg(rs)} | {reg(rt)});"  # NOR
-            elif fn == 0x2A: line = f"{reg(rd)} = ((int32_t){reg(rs)} < (int32_t){reg(rt)}) ? 1 : 0;"  # SLT
-            elif fn == 0x2B: line = f"{reg(rd)} = ({reg(rs)} < {reg(rt)}) ? 1 : 0;"  # SLTU
-            elif fn == 0x16: line = f"{reg(rd)} = __builtin_clz({reg(rs)});"  # CLZ
-            elif fn == 0x17: line = f"{reg(rd)} = __builtin_ctz({reg(rs)});"  # CLO (aproximado)
-            elif fn == 0x28: line = f"{reg(rd)} = ({reg(rs)} == 0) ? {reg(rt)} : {reg(rd)};"  # MOVZ
-            elif fn == 0x29: line = f"{reg(rd)} = ({reg(rs)} != 0) ? {reg(rt)} : {reg(rd)};"  # MOVN
-            elif fn == 0x2C: line = f"{{ int64_t _m=(int64_t)(int32_t){reg(rs)}*(int64_t)(int32_t){reg(rt)}; {reg(rd)}=(uint32_t)(_m>>32); }}"  # MADD
+            elif fn == 0x10: line = f"{reg(rd)} = cpu->hi;"
+            elif fn == 0x11: line = f"cpu->hi = {reg(rs)};"
+            elif fn == 0x12: line = f"{reg(rd)} = cpu->lo;"
+            elif fn == 0x13: line = f"cpu->lo = {reg(rs)};"
+            elif fn == 0x18: line = f"{{ int64_t _m = (int64_t)(int32_t){reg(rs)} * (int64_t)(int32_t){reg(rt)}; cpu->lo=(uint32_t)_m; cpu->hi=(uint32_t)(_m>>32); }}"
+            elif fn == 0x19: line = f"{{ uint64_t _m = (uint64_t){reg(rs)} * (uint64_t){reg(rt)}; cpu->lo=(uint32_t)_m; cpu->hi=(uint32_t)(_m>>32); }}"
+            elif fn == 0x1A: line = f"if ({reg(rt)}) {{ cpu->lo=(uint32_t)((int32_t){reg(rs)}/(int32_t){reg(rt)}); cpu->hi=(uint32_t)((int32_t){reg(rs)}%(int32_t){reg(rt)}); }}"
+            elif fn == 0x1B: line = f"if ({reg(rt)}) {{ cpu->lo={reg(rs)}/{reg(rt)}; cpu->hi={reg(rs)}%{reg(rt)}; }}"
+            elif fn == 0x20: line = f"{reg(rd)} = (uint32_t)((int32_t){reg(rs)}+(int32_t){reg(rt)});"
+            elif fn == 0x21: line = f"{reg(rd)} = {reg(rs)} + {reg(rt)};"
+            elif fn == 0x22: line = f"{reg(rd)} = (uint32_t)((int32_t){reg(rs)}-(int32_t){reg(rt)});"
+            elif fn == 0x23: line = f"{reg(rd)} = {reg(rs)} - {reg(rt)};"
+            elif fn == 0x24: line = f"{reg(rd)} = {reg(rs)} & {reg(rt)};"
+            elif fn == 0x25: line = f"{reg(rd)} = {reg(rs)} | {reg(rt)};"
+            elif fn == 0x26: line = f"{reg(rd)} = {reg(rs)} ^ {reg(rt)};"
+            elif fn == 0x27: line = f"{reg(rd)} = ~({reg(rs)} | {reg(rt)});"
+            elif fn == 0x2A: line = f"{reg(rd)} = ((int32_t){reg(rs)} < (int32_t){reg(rt)}) ? 1 : 0;"
+            elif fn == 0x2B: line = f"{reg(rd)} = ({reg(rs)} < {reg(rt)}) ? 1 : 0;"
+            elif fn == 0x16: line = f"{reg(rd)} = __builtin_clz({reg(rs)});"
+            elif fn == 0x17: line = f"{reg(rd)} = __builtin_ctz({reg(rs)});"
+            elif fn == 0x28: line = f"{reg(rd)} = ({reg(rs)} == 0) ? {reg(rt)} : {reg(rd)};"
+            elif fn == 0x29: line = f"{reg(rd)} = ({reg(rs)} != 0) ? {reg(rt)} : {reg(rd)};"
+            elif fn == 0x2C: line = f"{{ int64_t _m=(int64_t)(int32_t){reg(rs)}*(int64_t)(int32_t){reg(rt)}; {reg(rd)}=(uint32_t)(_m>>32); }}"
 
-        elif op == 0x01:  # REGIMM
+        elif op == 0x01:
             offset = addr + 4 + (imms << 2)
-            instr.is_branch = True
-            instr.has_delay = True
-            if   rt == 0x00: line = f"if ((int32_t){reg(rs)} < 0) {{ /* DS */ goto loc_{offset:08X}; }}"   # BLTZ
-            elif rt == 0x01: line = f"if ((int32_t){reg(rs)} >= 0) {{ /* DS */ goto loc_{offset:08X}; }}"  # BGEZ
-            elif rt == 0x10: # BLTZAL
+            instr.is_branch, instr.has_delay = True, True
+            if   rt in (0x00, 0x02): line = f"if ((int32_t){reg(rs)} < 0) {{ /* DS */ goto loc_{offset:08X}; }}"
+            elif rt in (0x01, 0x03): line = f"if ((int32_t){reg(rs)} >= 0) {{ /* DS */ goto loc_{offset:08X}; }}"
+            elif rt in (0x10, 0x12): 
                 instr.is_call = True
                 line = f"if ((int32_t){reg(rs)} < 0) {{ cpu->ra=0x{addr+8:08X}u; /* DS */ goto loc_{offset:08X}; }}"
-            elif rt == 0x11: # BGEZAL
+            elif rt in (0x11, 0x13): 
                 instr.is_call = True
                 line = f"if ((int32_t){reg(rs)} >= 0) {{ cpu->ra=0x{addr+8:08X}u; /* DS */ goto loc_{offset:08X}; }}"
 
-        elif op == 0x02:  # J
-            dest = self._load_base + (instr.target26 << 2)
-            instr.is_jump   = True
-            instr.has_delay = True
-            if dest in self._func_starts:
-                line = f"/* DS */ cpu->pc = 0x{dest:08X}u; return;"
-            else:
-                line = f"/* DS */ goto loc_{dest:08X};"
+        # CORREÇÃO PRX AQUI (Decodificação J/JAL)
+        elif op == 0x02:
+            dest = self._load_base | (instr.target26 << 2)
+            instr.is_jump, instr.has_delay = True, True
+            line = f"/* DS */ goto loc_{dest:08X};"
 
-        elif op == 0x03:  # JAL
-            dest = self._load_base + (instr.target26 << 2)
-            instr.is_call   = True
-            instr.has_delay = True
-            line = f"cpu->ra=0x{addr+8:08X}u; /* DS */ cpu->pc = 0x{dest:08X}u; return;"
+        elif op == 0x03:
+            dest = self._load_base | (instr.target26 << 2)
+            instr.is_call, instr.has_delay = True, True
+            line = f"cpu->ra=0x{addr+8:08X}u; /* DS */ goto loc_{dest:08X};"
 
-        elif op == 0x04:  # BEQ
+        elif op in (0x04, 0x14):
             offset = addr + 4 + (imms << 2)
-            instr.is_branch = True
-            instr.has_delay = True
-            if rs == 0 and rt == 0:
-                line = f"/* DS */ cpu->pc = 0x{offset:08X}u; return;"
-            else:
-                if offset in self._func_starts:
-                    line = f"if ({reg(rs)} == {reg(rt)}) {{ /* DS */ cpu->pc = 0x{offset:08X}u; return; }}"
-                else:
-                    line = f"if ({reg(rs)} == {reg(rt)}) {{ /* DS */ goto loc_{offset:08X}; }}"
+            instr.is_branch, instr.has_delay = True, True
+            line = f"/* DS */ goto loc_{offset:08X};" if rs == 0 and rt == 0 else f"if ({reg(rs)} == {reg(rt)}) {{ /* DS */ goto loc_{offset:08X}; }}"
 
-        elif op == 0x14:  # BEQL
+        elif op in (0x05, 0x15):
             offset = addr + 4 + (imms << 2)
-            instr.is_branch = True
-            instr.has_delay = True
-            if rs == 0 and rt == 0:
-                line = f"/* DS likely */ cpu->pc = 0x{offset:08X}u; return;"
-            else:
-                if offset in self._func_starts:
-                    line = f"if ({reg(rs)} == {reg(rt)}) {{ /* DS */ cpu->pc = 0x{offset:08X}u; return; }}"
-                else:
-                    line = f"if ({reg(rs)} == {reg(rt)}) {{ /* DS */ goto loc_{offset:08X}; }}"
-
-        elif op == 0x05:  # BNE
-            offset = addr + 4 + (imms << 2)
-            instr.is_branch = True
-            instr.has_delay = True
+            instr.is_branch, instr.has_delay = True, True
             line = f"if ({reg(rs)} != {reg(rt)}) {{ /* DS */ goto loc_{offset:08X}; }}"
 
-        elif op == 0x06:  # BLEZ
+        elif op in (0x06, 0x16):
             offset = addr + 4 + (imms << 2)
-            instr.is_branch = True
-            instr.has_delay = True
+            instr.is_branch, instr.has_delay = True, True
             line = f"if ((int32_t){reg(rs)} <= 0) {{ /* DS */ goto loc_{offset:08X}; }}"
 
-        elif op == 0x07:  # BGTZ
+        elif op in (0x07, 0x17):
             offset = addr + 4 + (imms << 2)
-            instr.is_branch = True
-            instr.has_delay = True
+            instr.is_branch, instr.has_delay = True, True
             line = f"if ((int32_t){reg(rs)} > 0) {{ /* DS */ goto loc_{offset:08X}; }}"
 
-        elif op == 0x08:  # ADDI (Limpeza visual para valores negativos)
-            if imms < 0: line = f"{reg(rt)} = (uint32_t)((int32_t){reg(rs)} - {-imms});"
-            else:        line = f"{reg(rt)} = (uint32_t)((int32_t){reg(rs)} + {imms});"
-            
-        elif op == 0x09:  # ADDIU (Limpeza visual para operações na pilha)
-            if imms < 0: line = f"{reg(rt)} = {reg(rs)} - {-imms};"
-            else:        line = f"{reg(rt)} = {reg(rs)} + {imms};"
-            
-        elif op == 0x0A: line = f"{reg(rt)} = ((int32_t){reg(rs)} < {imms}) ? 1 : 0;"  # SLTI
-        elif op == 0x0B: line = f"{reg(rt)} = ({reg(rs)} < {imm}u) ? 1 : 0;"           # SLTIU
-        elif op == 0x0C: line = f"{reg(rt)} = {reg(rs)} & 0x{imm:04X}u;"               # ANDI
-        elif op == 0x0D: line = f"{reg(rt)} = {reg(rs)} | 0x{imm:04X}u;"               # ORI
-        elif op == 0x0E: line = f"{reg(rt)} = {reg(rs)} ^ 0x{imm:04X}u;"               # XORI
-        elif op == 0x0F: line = f"{reg(rt)} = 0x{imm:04X}u << 16;"                     # LUI
+        elif op == 0x08: line = f"{reg(rt)} = (uint32_t)((int32_t){reg(rs)} - {-imms});" if imms < 0 else f"{reg(rt)} = (uint32_t)((int32_t){reg(rs)} + {imms});"
+        elif op == 0x09: line = f"{reg(rt)} = {reg(rs)} - {-imms};" if imms < 0 else f"{reg(rt)} = {reg(rs)} + {imms};"
+        elif op == 0x0A: line = f"{reg(rt)} = ((int32_t){reg(rs)} < {imms}) ? 1 : 0;"
+        elif op == 0x0B: line = f"{reg(rt)} = ({reg(rs)} < {imm}u) ? 1 : 0;"
+        elif op == 0x0C: line = f"{reg(rt)} = {reg(rs)} & 0x{imm:04X}u;"
+        elif op == 0x0D: line = f"{reg(rt)} = {reg(rs)} | 0x{imm:04X}u;"
+        elif op == 0x0E: line = f"{reg(rt)} = {reg(rs)} ^ 0x{imm:04X}u;"
+        elif op == 0x0F: line = f"{reg(rt)} = 0x{imm:04X}u << 16;"
 
-        elif op == 0x20: line = f"{reg(rt)} = (uint32_t)(int8_t)MEM_R8(mem,{reg(rs)}+{imms});"    # LB
-        elif op == 0x21: line = f"{reg(rt)} = (uint32_t)(int16_t)MEM_R16(mem,{reg(rs)}+{imms});"  # LH
-        elif op == 0x22: line = f"/* LWL {reg(rt)}, {imms}({reg(rs)}) - stub */"
-        elif op == 0x23: line = f"{reg(rt)} = MEM_R32(mem,{reg(rs)}+{imms});"                     # LW
-        elif op == 0x24: line = f"{reg(rt)} = (uint32_t)MEM_R8(mem,{reg(rs)}+{imms});"            # LBU
-        elif op == 0x25: line = f"{reg(rt)} = (uint32_t)MEM_R16(mem,{reg(rs)}+{imms});"           # LHU
-        elif op == 0x26: line = f"/* LWR {reg(rt)}, {imms}({reg(rs)}) - stub */"
+        elif op == 0x20: line = f"{reg(rt)} = (uint32_t)(int8_t)MEM_R8(mem,{reg(rs)}+{imms});"
+        elif op == 0x21: line = f"{reg(rt)} = (uint32_t)(int16_t)MEM_R16(mem,{reg(rs)}+{imms});"
+        elif op == 0x22: line = f"/* LWL stub */"
+        elif op == 0x23: line = f"{reg(rt)} = MEM_R32(mem,{reg(rs)}+{imms});"
+        elif op == 0x24: line = f"{reg(rt)} = (uint32_t)MEM_R8(mem,{reg(rs)}+{imms});"
+        elif op == 0x25: line = f"{reg(rt)} = (uint32_t)MEM_R16(mem,{reg(rs)}+{imms});"
+        elif op == 0x26: line = f"/* LWR stub */"
 
-        elif op == 0x28: line = f"MEM_W8(mem,{reg(rs)}+{imms},(uint8_t){reg(rt)});"    # SB
-        elif op == 0x29: line = f"MEM_W16(mem,{reg(rs)}+{imms},(uint16_t){reg(rt)});"  # SH
-        elif op == 0x2A: line = f"/* SWL {reg(rt)}, {imms}({reg(rs)}) - stub */"
-        elif op == 0x2B: line = f"MEM_W32(mem,{reg(rs)}+{imms},{reg(rt)});"            # SW
-        elif op == 0x2E: line = f"/* SWR {reg(rt)}, {imms}({reg(rs)}) - stub */"
-
-        elif op in (0x11, 0x12, 0x13, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F,
-                    0x31, 0x35, 0x39, 0x3D):
-            line = f"/* FPU/VFPU 0x{raw:08X} @ 0x{addr:08X} - stub */"
-
-        else:
-            line = f"/* UNKNOWN op=0x{op:02X} 0x{raw:08X} @ 0x{addr:08X} */"
+        elif op == 0x28: line = f"MEM_W8(mem,{reg(rs)}+{imms},(uint8_t){reg(rt)});"
+        elif op == 0x29: line = f"MEM_W16(mem,{reg(rs)}+{imms},(uint16_t){reg(rt)});"
+        elif op == 0x2A: line = f"/* SWL stub */"
+        elif op == 0x2B: line = f"MEM_W32(mem,{reg(rs)}+{imms},{reg(rt)});"
+        elif op == 0x2E: line = f"/* SWR stub */"
+        elif op in (0x11, 0x12, 0x13, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x31, 0x35, 0x39, 0x3D): line = f"/* FPU stub */"
+        else: line = f"/* UNKNOWN op=0x{op:02X} */"
 
         instr.c_line = line
 
-    # ── Coleta instruções de uma função ────────────────────────────────────
     def _collect_instrs(self, start_addr):
         addr = start_addr
         next_funcs = sorted(a for a in self._func_starts if a > start_addr)
         stop = next_funcs[0] if next_funcs else start_addr + MAX_FUNC_LINES * 4
-        stop = min(stop, start_addr + MAX_FUNC_LINES * 4)
 
         instrs = []
         while addr < stop:
             raw = self._read32(addr)
-            if raw is None:
-                break
+            if raw is None: break
             instr = Instr(addr, raw)
             self._decode(instr)
             instrs.append(instr)
             addr += 4
         return instrs
 
-    # ── Gera o corpo estruturado e processa Delay Slots ─────────────────────
     def _format_function_body(self, start_addr, instrs):
-        branch_targets = set()
-        for instr in instrs:
-            if instr.is_branch or instr.is_jump:
-                m = re.search(r'goto loc_([0-9A-Fa-f]{8})', instr.c_line)
-                if m:
-                    target = int(m.group(1), 16)
-                    if any(i.addr == target for i in instrs):
-                        branch_targets.add(target)
-
-        lines = []
-        skip_next = False
-        instr_addrs = {i.addr for i in instrs}
+        lines, instr_addrs, emitted_addrs = [], {i.addr for i in instrs}, []
 
         for i, instr in enumerate(instrs):
             addr = instr.addr
-
-            if skip_next:
-                lines.append(f"  /* 0x{addr:08X}: delay slot (emitido acima) */")
-                skip_next = False
-                continue
-
-            if addr in branch_targets or addr == start_addr:
-                lines.append(f" loc_{addr:08X}:;")
+            emitted_addrs.append(addr)
+            lines.append(f" loc_{addr:08X}:;")
 
             ds_line = "/* nop */"
             if instr.has_delay:
                 if i + 1 < len(instrs):
                     ds_instr = instrs[i + 1]
-                    ds_raw_instr = Instr(ds_instr.addr, ds_instr.raw)
-                    self._decode(ds_raw_instr)
-                    ds_line = ds_raw_instr.c_line if ds_raw_instr.c_line else "/* nop */"
-                    skip_next = True
+                    ds_raw = Instr(ds_instr.addr, ds_instr.raw)
+                    self._decode(ds_raw)
+                    ds_line = ds_raw.c_line or "/* nop */"
+                else:
+                    raw_ds = self._read32(addr + 4)
+                    if raw_ds is not None:
+                        ds_raw = Instr(addr + 4, raw_ds)
+                        self._decode(ds_raw)
+                        ds_line = ds_raw.c_line or "/* nop */"
 
             line = instr.c_line or ""
+            is_likely = instr.op in (0x14, 0x15, 0x16, 0x17) or (instr.op == 0x01 and instr.rt in (0x02, 0x03, 0x12, 0x13))
 
-            # Transforma goto para fora da função em alteração de PC e retorno limpo
-            m = re.search(r'goto loc_([0-9A-Fa-f]{8})', line)
-            if m:
-                target = int(m.group(1), 16)
-                inside = target in instr_addrs
-                if not inside:
-                    line = re.sub(
-                        r'goto loc_([0-9A-Fa-f]{8});?',
-                        lambda m: f'cpu->pc = 0x{m.group(1).upper()}u; return;',
-                        line
-                    )
-
-            # Injeção confiável do Delay Slot
             if "/* DS */" in line:
                 branch_line = line.replace("/* DS */", ds_line, 1)
+                if is_likely: branch_line += f" else {{ goto loc_{addr+8:08X}; }}"
             else:
                 branch_line = line
 
-            branch_line = branch_line.strip()
+            def sanitize_goto(match):
+                tgt = int(match.group(1), 16)
+                return match.group(0) if tgt in instr_addrs else f"cpu->pc = 0x{tgt:08X}u; return;"
 
-            # Descartar linhas de código inválido
+            branch_line = re.sub(r'goto loc_([0-9A-Fa-f]{8});?', sanitize_goto, branch_line)
             is_invalid = "UNKNOWN" in branch_line or addr > 0x0A000000
-
-            if not is_invalid:
-                loc_refs = re.findall(r'loc_([0-9A-Fa-f]{8})', branch_line)
-                for l_addr_hex in loc_refs:
-                    l_addr = int(l_addr_hex, 16)
-                    if l_addr not in instr_addrs:
-                        is_invalid = True
-                        break
 
             if is_invalid:
                 clean_line = branch_line.replace("/*", "").replace("*/", "").strip()
                 branch_line = f"/* Skip invalid/data @ 0x{addr:08X}: {clean_line} */"
 
-            # Sanitização robusta
             branch_line = re.sub(r'\breturn\b(?!\s*;)', 'return;', branch_line)
             branch_line = re.sub(r';\s*;', ';', branch_line)
             branch_line = re.sub(r'([^;{}\s])\s*}', r'\1; }', branch_line)
             branch_line = re.sub(r'\s+', ' ', branch_line)
 
             lines.append(f"  {branch_line}  /* 0x{raw_hex(instr.raw)} */")
+        return lines, emitted_addrs
 
-        return lines
-
-    # ── Agrupa funções em arquivos em lote ─────────────────────────────────
-    def _emit_group(self, group_id, funcs):
+    def _emit_group(self, args):
+        group_id, funcs = args
         path = os.path.join(FUNCS_DIR, f"funcs_{group_id:03d}.c")
-
-        lines = []
-        lines.append('#include "../../runtime/cpu.h"')
-        lines.append('#include "../../runtime/memory.h"')
-        lines.append('#include "../func_table.h"\n')
+        lines = ['#include "../../runtime/cpu.h"', '#include "../../runtime/memory.h"', '#include "../func_table.h"\n']
 
         for start_addr, instrs in funcs:
             fname = f"func_{start_addr:08X}"
-            lines.append(f"\n/* ===== {fname} ===== */")
-            lines.append(f"void {fname}(MIPS_CPU *cpu, uint8_t *mem) {{")
+            lines.append(f"\n/* ===== {fname} ===== */\nvoid {fname}(MIPS_CPU *cpu, uint8_t *mem) {{")
             
-            body_lines = self._format_function_body(start_addr, instrs)
+            body_lines, emitted_addrs = self._format_function_body(start_addr, instrs)
+
+            if emitted_addrs:
+                lines.append("  switch(cpu->pc) {")
+                for ea in emitted_addrs: lines.append(f"    case 0x{ea:08X}: goto loc_{ea:08X};")
+                lines.append("  }")
+
             lines.extend(body_lines)
 
-            # Garante que a função não acabe sem avançar o PC
-            if body_lines:
-                last_body_line = body_lines[-1].strip()
-                if not last_body_line.endswith("return;"):
-                    lines.append("  cpu->pc += 4; // Avança o PC caso não tenha havido salto")
-                    lines.append("  return;")
+            if body_lines and not body_lines[-1].strip().endswith("return;"):
+                last_addr = instrs[-1].addr
+                lines.append(f"  cpu->pc = 0x{last_addr + 4:08X}u; // Avanca o PC de forma absoluta")
+                lines.append("  return;")
 
             lines.append("}")
 
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
+        with open(path, "w", encoding="utf-8") as f: f.write("\n".join(lines))
+        print(f"[Thread] Arquivo funcs_{group_id:03d}.c gerado com sucesso.")
 
-    # ── Gera tabela de funções (Sólido) ────────────────────────────────────
     def _emit_table(self, func_entries):
-        h = [
-            "#pragma once",
-            '#include "runtime/cpu.h"',
-            "",
-            "typedef void (*PSPFunc)(MIPS_CPU *cpu, uint8_t *mem);",
-            "",
-            "extern uint32_t psp_func_addrs[];"
-        ]
+        h = ["#pragma once", '#include "runtime/cpu.h"', "", "typedef void (*PSPFunc)(MIPS_CPU *cpu, uint8_t *mem);", "", "extern uint32_t psp_func_addrs[];"]
+        unique_func_names = sorted(list(set(name for _, name in func_entries)))
+        h.extend([f"void {name}(MIPS_CPU *cpu, uint8_t *mem);" for name in unique_func_names])
+        h.extend(["", "extern PSPFunc psp_func_table[];", f"#define PSP_FUNC_COUNT {len(func_entries)}"])
+        
+        with open(os.path.join(OUT_DIR, "func_table.h"), "w") as f: f.write("\n".join(h))
 
-        for addr, name in func_entries:
-            h.append(f"void {name}(MIPS_CPU *cpu, uint8_t *mem);")
-
-        h += [
-            "",
-            "extern PSPFunc psp_func_table[];",
-            f"#define PSP_FUNC_COUNT {len(func_entries)}"
-        ]
-
-        with open(os.path.join(OUT_DIR, "func_table.h"), "w") as f:
-            f.write("\n".join(h))
-
-        c = [
-            '#include "func_table.h"',
-            "",
-            "PSPFunc psp_func_table[] = {"
-        ]
-
-        for addr, name in func_entries:
-            c.append(f"    {name},")
-
+        c = ['#include "func_table.h"', "", "PSPFunc psp_func_table[] = {"]
+        c.extend([f"    {name}," for _, name in func_entries])
+        c.extend(["};", "", "uint32_t psp_func_addrs[] = {"])
+        c.extend([f"    0x{addr:08X}," for addr, _ in func_entries])
         c.append("};")
-        c.append("")
+        
+        with open(os.path.join(OUT_DIR, "func_table.c"), "w") as f: f.write("\n".join(c))
 
-        c.append("uint32_t psp_func_addrs[] = {")
-        for addr, name in func_entries:
-            c.append(f"    0x{addr:08X},")
-        c.append("};")
-
-        with open(os.path.join(OUT_DIR, "func_table.c"), "w") as f:
-            f.write("\n".join(c))
-
-    # ── Pipeline principal ───────────────────────────────
     def run(self):
         self._discover_functions()
-
         group_size = 100
-        group = []
-        group_id = 0
-        
-        func_entries = []
+        groups, current_group, func_entries = [], [], []
 
         for i, start in enumerate(sorted(self._func_starts)):
             instrs = self._collect_instrs(start)
-            if not instrs:
-                continue
-
-            group.append((start, instrs))
+            if not instrs: continue
+            current_group.append((start, instrs))
             name = f"func_{start:08X}"
-            func_entries.append((start, name))
+            
+            for ins in instrs:
+                func_entries.append((ins.addr, name))
 
-            if len(group) >= group_size:
-                self._emit_group(group_id, group)
-                group = []
-                group_id += 1
+            if len(current_group) >= group_size:
+                groups.append((len(groups), current_group))
+                current_group = []
 
-        if group:
-            self._emit_group(group_id, group)
+        if current_group: groups.append((len(groups), current_group))
+
+        print(f"[disasm] Gerando arquivos C usando {os.cpu_count()} threads...")
+        with ThreadPoolExecutor() as executor: executor.map(self._emit_group, groups)
 
         self._emit_table(func_entries)
+        print("[disasm] Processo finalizado com Mapeamento Total!")
 
 if __name__ == "__main__":
-    t = MIPStoC()
-    t.run()
+    MIPStoC().run()

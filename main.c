@@ -42,7 +42,7 @@ int main() {
 
     while (cpu.running) {
         cpu.zero = 0; // Garante que $zero seja sempre 0
-        cpu_dispatch(&cpu, mem, cpu.pc);
+        dispatcher(&cpu, mem, cpu.pc);
     }
 
     printf("[RECOMP] Execução finalizada.\n");

@@ -72,6 +72,11 @@ int main(int argc, char **argv) {
     /* Inicializa CPU */
     MIPS_CPU cpu;
     cpu_init(&cpu, entry, PSP_STACK_TOP);
+    
+    /* ── CORREÇÃO DE SAÍDA DE THREAD ── */
+    // Define um endereço de retorno falso para representar o Kernel do PSP
+    cpu.ra = 0xFFFFFFFF; 
+
     printf("[LOADER] Iniciando Trampoline Dispatcher em 0x%08X...\n", entry);
 
     /* 
@@ -80,7 +85,14 @@ int main(int argc, char **argv) {
      */
     while (cpu.running) {
         cpu.zero = 0; // Proteção absoluta do registrador zero
-        cpu_dispatch(&cpu, mem, cpu.pc);
+        
+        /* ── INTERCEPTAÇÃO DA SAÍDA ── */
+        if (cpu.pc == 0xFFFFFFFF) {
+            printf("\n[KERNEL] Thread principal finalizada com sucesso! (Retorno ao Sistema)\n");
+            break; 
+        }
+
+        dispatcher(&cpu, mem, cpu.pc);
     }
 
     printf("\n[LOADER] Execução finalizada graciosamente.\n");
