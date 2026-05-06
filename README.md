@@ -1,4 +1,4 @@
-# PSP Recomp — God of War: Chains of Olympus → R36S
+# PSP Recomp — God of War: Chains of Olympus → R36S (DESCRIÇÃO DE PROJETO DESATUALIZADA)
 ## Guia passo a passo para iniciantes
 
 ---
