@@ -1,114 +1,75 @@
-/**
- * runtime/syscalls.c
- * Stubs das syscalls do PSP (sceKernel, sceGe, sceDisplay, etc.)
- *
- * COMO FUNCIONA:
- * No PSP, syscalls são chamadas via instrução SYSCALL com um código de 20 bits.
- * O código real mapeia para funções da firmware Sony (sceXxx).
- *
- * Para o recomp funcionar no R36S, cada syscall precisa ser reimplementada
- * usando as APIs disponíveis no Linux/Android do R36S (SDL2, OpenGL ES, etc.)
- *
- * Por enquanto, todas as syscalls têm stubs que apenas logam a chamada.
- * Implemente as que forem necessárias conforme o jogo exigir.
- *
- * REFERÊNCIA DE SYSCALLS DO PSP:
- *   https://uofw.github.io/upspd/docs/software/PSP_OS/
- */
-
 #include "cpu.h"
-#include "memory.h"
 #include <stdio.h>
-#include <string.h>
 
-/* ── Tabela de nomes (para debugging) ───────────────────────────────────── */
-typedef struct {
-    uint32_t    code;
-    const char *name;
-} SyscallEntry;
-
-/* Códigos mais comuns do God of War: Chains of Olympus */
-static const SyscallEntry SYSCALL_TABLE[] = {
-    /* sceKernelLibc */
-    { 0x2150,  "sceKernelLibcTime"         },
-    { 0x2151,  "sceKernelLibcClock"        },
-    /* sceDisplay */
-    { 0x6000,  "sceDisplaySetMode"         },
-    { 0x6001,  "sceDisplaySetFrameBuf"     },
-    { 0x6002,  "sceDisplayWaitVblankStart" },
-    { 0x6003,  "sceDisplayGetFrameBuf"     },
-    /* sceGe_user (GPU commands) */
-    { 0x4700,  "sceGeListEnQueue"          },
-    { 0x4701,  "sceGeListSync"             },
-    { 0x4702,  "sceGeDrawSync"             },
-    /* sceCtrl (input) */
-    { 0x5000,  "sceCtrlReadBufferPositive" },
-    { 0x5001,  "sceCtrlSetSamplingCycle"   },
-    { 0x5002,  "sceCtrlSetSamplingMode"    },
-    /* sceAudio */
-    { 0x8000,  "sceAudioChReserve"         },
-    { 0x8001,  "sceAudioChRelease"         },
-    { 0x8002,  "sceAudioOutputBlocking"    },
-    /* sceKernelThread */
-    { 0x3000,  "sceKernelCreateThread"     },
-    { 0x3001,  "sceKernelStartThread"      },
-    { 0x3002,  "sceKernelExitThread"       },
-    { 0x3003,  "sceKernelSleepThread"      },
-    { 0x3004,  "sceKernelDelayThread"      },
-    /* sceKernelMemory */
-    { 0x2000,  "sceKernelAllocPartitionMemory" },
-    { 0x2001,  "sceKernelFreePartitionMemory"  },
-    { 0x2002,  "sceKernelGetBlockHeadAddr"     },
-    { 0,       NULL }
-};
-
+/* Tabela de nomes para o log ficar bonito */
 static const char *syscall_name(uint32_t code) {
-    for (int i = 0; SYSCALL_TABLE[i].name; i++) {
-        if (SYSCALL_TABLE[i].code == code)
-            return SYSCALL_TABLE[i].name;
+    switch(code) {
+        case 0x22001: return "sceGeListEnQueue";
+        case 0x0E004: return "sceDisplayWaitVblankStart";
+        case 0x0E000: return "sceDisplaySetMode";
+        case 0x0E001: return "sceDisplaySetFrameBuf";
+        case 0x0D006: return "sceCtrlPeekBufferPositive";
+        
+        /* As misteriosas mais chamadas do Kratos */
+        case 0x00D59: return "GOW_Unknown_Core_Op1";
+        case 0x00D4F: return "GOW_Unknown_Core_Op2";
+        case 0x00D48: return "GOW_Unknown_Core_Op3";
+        case 0x21400: return "GOW_Giant_Loop_Op1";
+        case 0x21800: return "GOW_Giant_Loop_Op2";
+        
+        default: return "Desconhecida";
     }
-    return "???";
 }
 
-/* ── Dispatcher principal ────────────────────────────────────────────────── */
 void psp_syscall(MIPS_CPU *cpu, uint8_t *mem, uint32_t code) {
-    (void)mem;
-
+    // Loga a syscall pra gente ver o jogo rodando no terminal!
     fprintf(stderr, "[SYSCALL] code=0x%05X (%s) a0=0x%08X a1=0x%08X\n",
             code, syscall_name(code), cpu->a0, cpu->a1);
 
-    /* 
-     * ── IMPLEMENTE AS SYSCALLS AQUI ──────────────────────────────────────
-     *
-     * Exemplo de como implementar sceDisplayWaitVblankStart com SDL2:
-     *
-     * case 0x6002:  // sceDisplayWaitVblankStart
-     *     SDL_Delay(16);   // ~60fps
-     *     cpu->v0 = 0;     // retorno = 0 (sucesso)
-     *     return;
-     *
-     * Exemplo de sceCtrlReadBufferPositive:
-     *
-     * case 0x5000: {  // sceCtrlReadBufferPositive
-     *     // a0 = ponteiro para SceCtrlData na memória do PSP
-     *     // a1 = número de amostras
-     *     uint32_t buf_vaddr = cpu->a0;
-     *     SDL_PumpEvents();
-     *     const uint8_t *keys = SDL_GetKeyboardState(NULL);
-     *     uint32_t buttons = 0;
-     *     if (keys[SDL_SCANCODE_X])     buttons |= 0x4000;  // Botão X
-     *     if (keys[SDL_SCANCODE_Z])     buttons |= 0x2000;  // Círculo
-     *     if (keys[SDL_SCANCODE_UP])    buttons |= 0x0010;  // D-pad up
-     *     ...
-     *     MEM_W32(mem, buf_vaddr + 4, buttons);
-     *     cpu->v0 = 1;
-     *     return;
-     * }
-     */
-
     switch (code) {
-        /* Retorno padrão de sucesso para syscalls não implementadas */
+        /* ═══════════════════════════════════════════════════════════════
+         * GRÁFICOS & TELA (Os códigos reais que você achou!)
+         * ═══════════════════════════════════════════════════════════════ */
+        case 0x22001: // sceGeListEnQueue
+            // O jogo está mandando polígonos pra GPU. 
+            // Retornamos um ID fictício da lista (ex: 1) para ele achar que deu certo.
+            cpu->v0 = 1; 
+            return;
+
+        case 0x0E004: // sceDisplayWaitVblankStart
+            // O jogo quer travar a 60 FPS. Retorna 0 (sucesso).
+            cpu->v0 = 0;
+            return;
+
+        case 0x0E000: // sceDisplaySetMode
+        case 0x0E001: // sceDisplaySetFrameBuf
+            // O jogo configurou a tela.
+            cpu->v0 = 0;
+            return;
+
+        /* ═══════════════════════════════════════════════════════════════
+         * CONTROLES
+         * ═══════════════════════════════════════════════════════════════ */
+        case 0x0D006: // sceCtrlPeekBufferPositive
+            // Como ainda não ligamos o SDL para ler teclado, 
+            // vamos dizer que nenhum botão está apertado.
+            // O Kratos vai ficar parado, mas o jogo não vai travar.
+            cpu->v0 = 0;
+            return;
+
+        /* ═══════════════════════════════════════════════════════════════
+         * AS OUTRAS MAIS CHAMADAS DO GOW (Retorno padrão = sucesso)
+         * ═══════════════════════════════════════════════════════════════ */
+        case 0x00D59:
+        case 0x00D4F:
+        case 0x00D48:
+        case 0x21400:
+        case 0x21800:
+            cpu->v0 = 0;
+            return;
+
         default:
+            // Qualquer outra syscall genérica retorna 0 para evitar travamentos
             cpu->v0 = 0;
             break;
     }

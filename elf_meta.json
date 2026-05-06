@@ -1,0 +1,4027 @@
+{
+  "entry": 142621604,
+  "load_base": 142606336,
+  "code_segments": [
+    {
+      "vaddr": 142606336,
+      "offset": 116,
+      "size": 3453888
+    }
+  ],
+  "hle_imports": [
+    {
+      "syscall_code": "0x00D59",
+      "frequency": 131,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00D4F",
+      "frequency": 108,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00D48",
+      "frequency": 103,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02EC6",
+      "frequency": 41,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09F24",
+      "frequency": 25,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09F25",
+      "frequency": 20,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09F22",
+      "frequency": 18,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09F23",
+      "frequency": 18,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00D3E",
+      "frequency": 14,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00000",
+      "frequency": 13,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05462",
+      "frequency": 8,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09F43",
+      "frequency": 8,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x010F3",
+      "frequency": 7,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00002",
+      "frequency": 4,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00001",
+      "frequency": 4,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00003",
+      "frequency": 4,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x040F8",
+      "frequency": 4,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0xBA92C",
+      "frequency": 4,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0885C",
+      "frequency": 4,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x016D2",
+      "frequency": 4,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BD17",
+      "frequency": 4,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00DB6",
+      "frequency": 3,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00DCB",
+      "frequency": 3,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04E81",
+      "frequency": 3,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06622",
+      "frequency": 3,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06632",
+      "frequency": 3,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00075",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00110",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09633",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x098B6",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x098ED",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09924",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0995B",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0008D",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00181",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00BF0",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00F40",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01472",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01473",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01572",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x018FB",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x021C2",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x021C5",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0237F",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02B61",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x049CF",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05108",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x052EF",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05961",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08850",
+      "frequency": 2,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0C095",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0C06E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0C06A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0C069",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0C144",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x089AE",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x23A11",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08C22",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0015D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00160",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00184",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x001C6",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x001C9",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09F5D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00312",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0033D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0039E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0059F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0078A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00827",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0082B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0088E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0088F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A0F2",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A0FF",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A10C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A173",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A18C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A1D5",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A205",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A20E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A25D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A28C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A2FB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A301",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A304",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A36C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A375",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A3AE",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A3B7",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A3CE",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A3D8",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A3E7",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A3F0",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A425",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A42E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x3D489",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0018F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0001D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A533",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A592",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A59C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00236",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A5DE",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A607",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A64B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A654",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A661",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A667",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A66A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A684",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0036B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x2B9F0",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x001A2",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0165E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01660",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0166E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01673",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01678",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0xA0815",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A7AD",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A854",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A85D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A8B2",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A8E3",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AAF8",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AB01",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x15747",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AB32",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AB48",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0ABD5",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0ACBB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0295C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x029A1",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x029A2",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02AA0",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AE1F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AE36",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AE3F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02FCF",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x07DF2",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0D0FB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x3CF8F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x001A5",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00279",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x003AE",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x3E9CF",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00333",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00326",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0FFFF",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x3855A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x3D388",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00220",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x040FC",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x17450",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x5DA08",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00385",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0xE9B88",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x11542",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0039A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04E02",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x3F272",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B2DE",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B2EB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B364",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0546A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0546B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x16661",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05A3E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05A3F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05A49",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0020B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x3A907",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x03497",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x32E24",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0xEA9ED",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05C53",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05C52",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x119AA",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x28F4F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0625A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0628C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x062B4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x062D0",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x062DF",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B53E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06594",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B588",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0664F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x066B3",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B5A4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B5AD",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B5C6",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0677F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B624",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B63B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B641",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B644",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B74E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06AF2",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06AFB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06B4B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06B6E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06B77",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06BA4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06BA5",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06BAB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06BB7",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06BD3",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06BE3",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06BE9",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06BF0",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06BF1",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C04",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C0A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C0B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C0D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C22",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C23",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C25",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C32",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C33",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C42",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C60",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C6B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C72",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C7C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C84",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C85",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C8B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C92",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C9A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06C9F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06CA5",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06CA6",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06CA7",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06CB4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06CB5",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06CBC",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B7C6",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x07344",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0766B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0778B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BA77",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x07819",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x07826",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x07832",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BABF",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BAC6",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BAC9",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BAD7",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BAE1",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BB3A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x13D19",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x003C1",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BD41",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BD4A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BDBB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BDC4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BDEE",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BDF7",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BE1E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BE28",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BE40",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BE4D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BE67",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BE70",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BE87",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0027A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BE97",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BE9E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BEA1",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0871C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08753",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08801",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08857",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0010A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0010B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0010C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0010D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0010E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0010F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00111",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00112",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0011A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0011B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0011C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0011D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0011E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0011F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00120",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00121",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00122",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00123",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00126",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00129",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0012A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0012B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0012C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0012F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00130",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00131",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00135",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00136",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00137",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00138",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00139",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0013A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09F50",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0CA61",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00705",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0CA84",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AFA7",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AFE4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B028",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B068",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B0BA",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B0D9",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B103",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B138",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B16D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B502",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0CBBD",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0C9B6",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00210",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0021E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08105",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0450A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x022F2",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0001E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x68203",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x19D58",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00034",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0000F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00012",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00009",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BD9D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x085F0",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x085EA",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08916",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0CA1A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08AAF",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08E20",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08E37",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08E53",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08E5E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08E6C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08E8F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08EAA",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08EFE",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08F25",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08F41",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08F57",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08F73",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08F89",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08FBC",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09460",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x091AD",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x094BB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x094D0",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x094D5",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09509",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09512",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09517",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0951C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0954B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0955F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09572",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x091E8",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x095CF",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x095D4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x095E4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x095E9",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09601",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09677",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09699",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09772",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0978A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09877",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09B6F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09BCE",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09DEC",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09E27",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09E7C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09EAA",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09EDF",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09F12",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00103",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00106",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x09FC8",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00ADF",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A0DB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A1F4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00BB4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A274",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A313",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00D15",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A477",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A4A4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00D64",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A4D8",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00EFB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00FC1",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x00F70",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A559",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0108D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01230",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01237",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A5C8",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0133E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01375",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01390",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x014B4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01504",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A70D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0151D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01522",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01545",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A71F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01573",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A72C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0159A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x015A7",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A748",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A753",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x015DC",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x015DD",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01692",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A77C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x016B3",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A781",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x016C9",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x016CA",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0170B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A793",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0170C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01742",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0176C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01829",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01827",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x017D6",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0185D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0185C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A7D0",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x018DC",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x018FD",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0198B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0198D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01996",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0199E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x019E0",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01A6E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01A3C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01A4A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01A4B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A826",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01AC6",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01ACD",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01ACC",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A83F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01C60",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01CC0",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01CF8",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01D1E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A8C0",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01D3C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01D3D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A8FB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01E4C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A928",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01E4D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01E73",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A931",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A946",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01EBC",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01ED1",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01EF7",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01EF9",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01F05",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01F55",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0A9DA",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01F93",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01FA4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x01FB1",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0203A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02048",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AA27",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0213C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x021A0",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AA98",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02201",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02206",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AAA9",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02269",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AAE5",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02356",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x023A9",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x023DB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AB0A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02472",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x024F8",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0259B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x026DD",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x026DE",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02737",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AC2B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0276E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02798",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0277C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x027F7",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0283C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0284D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02863",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x028A1",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AC5B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x029B0",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AC98",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0ACCA",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x029DB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x029E1",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0ACE2",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02A00",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02A11",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02A2F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02A34",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02A5F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02B2B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02B32",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02B4C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02B52",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02B79",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02BD8",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02BED",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02C2C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0ADA3",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02C8B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0ADA8",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02D3B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0ADBA",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02D58",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02D6B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02DB8",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02E33",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02E34",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0ADEB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0ADFE",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AE42",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x02EDF",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0AEBA",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x03028",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0332F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x033B1",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04369",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B1A4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x043F6",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x044E9",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04534",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x046C9",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B20B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0472A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x048DD",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x048F2",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x048F6",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0496E",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x049B5",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x049BB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x049C6",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x049B6",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B25B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04B1A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B273",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04BA0",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B27B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04BE9",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04C91",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04C6C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04C86",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B2A4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04D77",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04D8C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04DAC",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04DB5",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04DDD",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B2B4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04F29",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04ED2",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04F46",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04EDE",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04F54",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x04F77",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x050A9",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B32A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x050A4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x050ED",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B338",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x051A7",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B355",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x052DF",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x052ED",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B374",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x053BE",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B396",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B39C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x053E8",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0552F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05409",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x055FB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0561C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0560D",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05644",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0562C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05638",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B427",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x056A3",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05687",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x056C7",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05702",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B42F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x057FF",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B449",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05874",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05875",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x058BF",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x058C5",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0595A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05984",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x059C2",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05AAE",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05ADD",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05AEC",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05B4B",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05B87",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05BD2",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B495",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x05D7C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06215",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x064A9",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x064A8",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x064AA",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x064BE",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x064CA",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0B504",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x064D5",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x064DA",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06516",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x06707",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0716C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x071A4",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0785C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x07A8C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08325",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08356",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0835C",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BD64",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08449",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08469",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0847F",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08480",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0BFD0",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08618",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0861A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08627",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x0862A",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x086DB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x086D3",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08731",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08748",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x08759",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    },
+    {
+      "syscall_code": "0x087DB",
+      "frequency": 1,
+      "nid": "0x????????",
+      "module": "GOW_STATIC"
+    }
+  ]
+}
