@@ -16,10 +16,6 @@
 #define PSP_STACK_TOP 0x09FFF000
 #endif
 
-/* ── Leitura de campos ELF ───────────────────────────────────────────────── */
-static uint16_t r16(const uint8_t *b) { return (uint16_t)(b[0] | (b[1] << 8)); }
-static uint32_t r32(const uint8_t *b) { return (uint32_t)(b[0] | (b[1]<<8) | (b[2]<<16) | (b[3]<<24)); }
-
 /* ── Leitura simples do entry point do JSON ───────────────────────────────── */
 static uint32_t read_entry_from_json(const char *path) {
     FILE *f = fopen(path, "r");
@@ -72,12 +68,18 @@ int main(int argc, char **argv) {
     /* Inicializa CPU */
     MIPS_CPU cpu;
     cpu_init(&cpu, entry, PSP_STACK_TOP);
+    cpu.ra = 0xFFFFFFFF; // Sentinela do Kernel
     
-    /* ── CORREÇÃO DE SAÍDA DE THREAD ── */
-    // Define um endereço de retorno falso para representar o Kernel do PSP
-    cpu.ra = 0xFFFFFFFF; 
-
-    printf("[LOADER] Iniciando Trampoline Dispatcher em 0x%08X...\n", entry);
+    // --- COMPORTAMENTO REAL DO LOADER DO PSP ---
+    // O PSP escreve o caminho do executável no topo da pilha
+    const char *boot_path = "host0:/USRDIR/EBOOT.BIN";
+    uint32_t path_len = strlen(boot_path) + 1;
+    cpu.sp -= 256; // Reserva um espaço seguro
+    strcpy((char*)&mem[cpu.sp], boot_path); // Escreve a string na RAM
+    
+    // Configura os argumentos como no sistema real
+    cpu.a0 = path_len;  // argc (Tamanho da string em bytes)
+    cpu.a1 = cpu.sp;    // argv (Ponteiro para a string que criamos acima)
 
     /* 
      * O CORAÇÃO DA EMULAÇÃO

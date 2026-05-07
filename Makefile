@@ -52,7 +52,8 @@ RUNTIME_SRCS := \
     runtime/memory.c \
     runtime/syscalls.c \
     runtime/loader.c \
-    runtime/dispatcher.c
+    runtime/dispatcher.c \
+	runtime/scheduler.c
 
 OUT_SRCS     := $(wildcard out/funcs/*.c) out/func_table.c
 

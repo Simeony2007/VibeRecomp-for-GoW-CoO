@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """
-parse_elf.py - Analisador avançado de ELF/PRX para PSP com extração de NIDs para HLE.
+parse_elf.py - Analisador avançado de ELF/PRX para PSP
+Extração 100% nativa de NIDs, Stubs, Globais e Construtores (.ctors).
 """
 
 import struct
 import sys
-import os
 import json
 
 # ─── Constantes ELF/PSP ───────────────────────────────────────────────────────
 ELF_MAGIC    = b'\x7fELF'
 ET_SCE_PRX   = 0xFFA0
-EM_MIPS      = 8
-PT_LOAD      = 1
+PT_PRXINFO   = 0x70000001
 SHT_REL      = 9
 PSP_LOAD_BASE = 0x08800000
 
@@ -22,15 +21,49 @@ R_MIPS_26   = 4
 R_MIPS_HI16 = 5
 R_MIPS_LO16 = 6
 
+# Dicionário dos NIDs mais vitais do PSP (Você pode adicionar mais depois)
+KNOWN_NIDS = {
+    0x446D8DE6: "sceKernelCreateThread",
+    0xF475845D: "sceKernelStartThread",
+    0x106D5659: "sceIoOpen",
+    0x810C4CE3: "sceIoClose",
+    0x6A638D83: "sceIoRead",
+    0x42EC0328: "sceIoWrite",
+    0x977DE386: "sceKernelLoadModule",
+    0x50F0C1EC: "sceKernelStartModule",
+    0xCEE345D4: "sceKernelDelayThread",
+    0xF6427665: "sceKernelSetCompiledSdkVersion",
+
+    # --- OS NOVOS NIDS DESCOBERTOS ---
+    0xE81CAF8F: "sceKernelLoadModule", 
+    0x04B7766E: "sceKernelStartModule",
+    0x68DA9E36: "sceKernelDelayThread",
+
+    0x0282A7BA: "sceKernelSetCompiledSdkVersion370",
+    0x28B6489C: "sceKernelDeleteThread",
+    0x278C0DF5: "sceKernelWaitThreadEnd",
+    0x092968F4: "sceKernelExitThread",
+    0xAA73C935: "sceKernelExitGame",
+
+    0x342061E5: "sceKernelSetCompiledSdkVersion",
+    0xF77D77CB: "sceKernelSetCompiledSdkVersion_2", 
+    0xEBD177D6: "sceKernelDelayThreadCB",
+    0xDFA8BAF8: "sceKernelSysClock2USec",
+    0xEDBA5844: "sceKernelUSec2SysClock",
+    0x82BC5777: "sceKernelCreateSema",
+    0x293B45B8: "sceKernelGetThreadId",
+    0x71BC9871: "sceKernelChangeThreadPriority",
+    0x46EBB729: "sceKernelWaitSema",
+}
+
 def r16(data, off): return struct.unpack_from("<H", data, off)[0]
 def r32(data, off): return struct.unpack_from("<I", data, off)[0]
 def w32(data, off, val): struct.pack_into("<I", data, off, val & 0xFFFFFFFF)
 
 class ELFSection:
-    def __init__(self, name, sh_type, addr, offset, size, link, info, data):
+    def __init__(self, name, sh_type, addr, offset, size, data):
         self.name, self.type, self.addr = name, sh_type, addr
-        self.offset, self.size, self.link = offset, size, link
-        self.info, self.data = info, data
+        self.offset, self.size, self.data = offset, size, data
 
 class ELFSegment:
     def __init__(self, p_type, p_offset, p_vaddr, p_filesz, p_memsz, p_flags, data):
@@ -43,17 +76,14 @@ class PSPElf:
     def __init__(self, path, load_base=PSP_LOAD_BASE):
         self.path, self.load_base = path, load_base
         self.sections, self.segments = [], []
-        self.entry_raw, self.entry, self.e_type = 0, 0, 0
-        self.hle_imports = [] # Tabela: {vaddr, nid, module}
+        self.entry, self.e_type, self.gp_value = 0, 0, 0
+        self.hle_imports = [] 
         
         self._parse()
         if self.e_type == ET_SCE_PRX:
             self._apply_relocations()
-            self._extract_hle_data() # Nova função para automatizar Syscalls
-        else:
-            self._relocated_image = bytearray(self._raw)
-
-        self.entry = self.entry_raw + (self.load_base if self.e_type == ET_SCE_PRX else 0)
+            
+        self._extract_hle_data()
 
     def _parse(self):
         with open(self.path, "rb") as f: self._raw = f.read()
@@ -61,74 +91,29 @@ class PSPElf:
         if raw[:4] != ELF_MAGIC: raise ValueError("EBOOT.BIN inválido ou criptografado.")
         
         self.e_type = r16(raw, 0x10)
-        self.entry_raw = r32(raw, 0x18)
+        entry_raw = r32(raw, 0x18)
+        self.entry = entry_raw + (self.load_base if self.e_type == ET_SCE_PRX else 0)
+        
         e_phoff, e_shoff = r32(raw, 0x1C), r32(raw, 0x20)
         e_phnum, e_phentsize = r16(raw, 0x2C), r16(raw, 0x2A)
         e_shnum, e_shentsize, e_shstrndx = r16(raw, 0x30), r16(raw, 0x2E), r16(raw, 0x32)
 
-        # Parse Segmentos
         for i in range(e_phnum):
             off = e_phoff + i * e_phentsize
-            p_type, p_offset, p_vaddr = r32(raw, off), r32(raw, off+4), r32(raw, off+8)
-            p_filesz, p_memsz, p_flags = r32(raw, off+16), r32(raw, off+20), r32(raw, off+24)
-            self.segments.append(ELFSegment(p_type, p_offset, p_vaddr, p_filesz, p_memsz, p_flags, raw[p_offset:p_offset+p_filesz]))
+            self.segments.append(ELFSegment(r32(raw, off), r32(raw, off+4), r32(raw, off+8), 
+                                            r32(raw, off+16), r32(raw, off+20), r32(raw, off+24), 
+                                            raw[r32(raw, off+4):r32(raw, off+4)+r32(raw, off+16)]))
 
-        # Parse Seções
         strtab_off = r32(raw, e_shoff + e_shstrndx * e_shentsize + 0x10)
         strtab_sz = r32(raw, e_shoff + e_shstrndx * e_shentsize + 0x14)
         strtab = raw[strtab_off:strtab_off+strtab_sz]
 
         for i in range(e_shnum):
             off = e_shoff + i * e_shentsize
-            sh_name_idx = r32(raw, off)
-            name = strtab[sh_name_idx:].split(b'\x00')[0].decode("ascii", errors="replace")
-            sh_type, sh_addr, sh_f_off, sh_size = r32(raw, off+4), r32(raw, off+12), r32(raw, off+16), r32(raw, off+20)
-            sh_link, sh_info = r32(raw, off+24), r32(raw, off+28)
-            self.sections.append(ELFSection(name, sh_type, sh_addr, sh_f_off, sh_size, sh_link, sh_info, raw[sh_f_off:sh_f_off+sh_size]))
-
-    def _extract_hle_data(self):
-        """ 
-        Modo Brute-Force: Varre todo o código executável caçando instruções 'syscall'.
-        Ignora NIDs e tabelas oficiais (ideal para jogos ofuscados como GOW).
-        """
-        print("[parse_elf] Modo Brute-Force ativado: Caçando syscalls no código...")
-        syscall_codes = {}
-        syscall_count = 0
-
-        for seg in self.segments:
-            if seg.is_executable():
-                data = seg.data
-                # Lê de 4 em 4 bytes (tamanho de uma instrução MIPS)
-                for i in range(0, len(data) - 3, 4):
-                    inst = struct.unpack("<I", data[i:i+4])[0]
-                    
-                    # Máscara MIPS exata: Opcode == 0 (primeiros 6 bits) e Funct == 0x0C (últimos 6 bits)
-                    if (inst & 0xFC00003F) == 0x0000000C:
-                        # Extrai os 20 bits de código do meio da instrução
-                        code = (inst >> 6) & 0xFFFFF
-                        
-                        if code not in syscall_codes:
-                            syscall_codes[code] = 0
-                        syscall_codes[code] += 1
-                        syscall_count += 1
-
-        # Ordena das mais chamadas para as menos chamadas
-        sorted_syscalls = sorted(syscall_codes.items(), key=lambda x: x[1], reverse=True)
-
-        self.hle_imports = []
-        for code, freq in sorted_syscalls:
-            self.hle_imports.append({
-                "syscall_code": f"0x{code:05X}",
-                "frequency": freq,
-                "nid": "0x????????", # Não sabemos o nome, mas temos o código!
-                "module": "GOW_STATIC"
-            })
-            
-        print(f"[parse_elf] ✅ {syscall_count} instruções SYSCALL encontradas ({len(syscall_codes)} códigos únicos)")
-
-    def _get_string_at(self, vaddr):
-        off = self._addr_to_offset(vaddr)
-        return self._raw[off:].split(b'\x00')[0].decode("ascii", errors="replace")
+            name = strtab[r32(raw, off):].split(b'\x00')[0].decode("ascii", errors="replace")
+            self.sections.append(ELFSection(name, r32(raw, off+4), r32(raw, off+12), 
+                                            r32(raw, off+16), r32(raw, off+20), 
+                                            raw[r32(raw, off+16):r32(raw, off+16)+r32(raw, off+20)]))
 
     def _addr_to_offset(self, vaddr):
         for seg in self.segments:
@@ -136,9 +121,80 @@ class PSPElf:
                 return seg.p_offset + (vaddr - seg.p_vaddr)
         return 0
 
+    def _extract_hle_data(self):
+        print("[parse_elf] Extraindo NIDs nativos via sceModuleInfo...")
+        raw = self._raw
+        modinfo_vaddr = 0
+        
+        # Procura o segmento específico do PSP que aponta para os metadados
+        for seg in self.segments:
+            if seg.p_type == PT_PRXINFO:
+                modinfo_vaddr = seg.p_vaddr
+                break
+
+        if modinfo_vaddr == 0:
+            for sec in self.sections:
+                if ".rodata.sceModuleInfo" in sec.name:
+                    modinfo_vaddr = sec.addr
+                    break
+
+        if modinfo_vaddr == 0:
+            print("  [ERRO] Tabela sceModuleInfo não encontrada!")
+            return
+
+        offset = self._addr_to_offset(modinfo_vaddr)
+        self.gp_value = r32(raw, offset + 0x20)
+        imp_top = r32(raw, offset + 0x2C)
+        imp_end = r32(raw, offset + 0x30)
+
+        print(f"  [+] Import Table: 0x{imp_top:08X} -> 0x{imp_end:08X}")
+
+        curr_imp = imp_top
+        while curr_imp < imp_end:
+            imp_off = self._addr_to_offset(curr_imp)
+            if imp_off == 0: break
+
+            name_off = r32(raw, imp_off)
+            func_count = r16(raw, imp_off + 0x0A)
+            nid_table_off = r32(raw, imp_off + 0x0C)
+            call_stub_off = r32(raw, imp_off + 0x10)
+
+            mod_name = raw[self._addr_to_offset(name_off):].split(b'\x00')[0].decode("ascii") if name_off else "syslib"
+
+            for i in range(func_count):
+                nid_off = self._addr_to_offset(nid_table_off + i*4)
+                if nid_off == 0: continue
+                
+                nid = r32(raw, nid_off)
+                stub_addr = call_stub_off + i*8
+                if self.e_type == ET_SCE_PRX: stub_addr += self.load_base
+
+                func_name = KNOWN_NIDS.get(nid, f"nid_0x{nid:08X}")
+
+                self.hle_imports.append({
+                    "stub_addr": f"0x{stub_addr:08X}",
+                    "nid": f"0x{nid:08X}",
+                    "name": func_name,
+                    "module": mod_name
+                })
+            curr_imp += 20 # Próxima estrutura
+
+        print(f"[parse_elf] ✅ {len(self.hle_imports)} NIDs resolvidos com perfeição!")
+
     def _apply_relocations(self):
         base, image = self.load_base, bytearray(self._raw)
         rel_count, hi16_pending = 0, []
+        
+        # 1. Encontra a localização e o tamanho da seção .ctors
+        ctors_vaddr, ctors_size = 0, 0
+        for sec in self.sections:
+            if sec.name == ".ctors":
+                ctors_vaddr = sec.addr
+                ctors_size = sec.size
+                print(f"[parse_elf] Secao .ctors encontrada: vaddr 0x{ctors_vaddr:08X}, size {ctors_size}")
+                break
+
+        # 2. Aplica as relocações padrão do MIPS
         for sec in self.sections:
             if sec.type != SHT_REL: continue
             data = sec.data
@@ -158,19 +214,45 @@ class PSPElf:
                         full = ((h_orig & 0xFFFF) << 16) + lo_s + base
                         w32(image, h_off, (h_orig & 0xFFFF0000) | (((full + 0x8000) >> 16) & 0xFFFF)); rel_count += 1
                     w32(image, off, (orig & 0xFFFF0000) | ((lo_s + base) & 0xFFFF)); hi16_pending.clear(); rel_count += 1
+        
+        # 3. FIX: Relocação Absoluta da Seção .ctors
+        # No PSP, os ponteiros da .ctors geralmente já vêm como offsets do executável.
+        # Nós precisamos convertê-allocá-los para ponteiros reais da RAM (somando a base).
+        if ctors_vaddr != 0:
+            ctors_off = self._addr_to_offset(ctors_vaddr)
+            for i in range(0, ctors_size, 4):
+                ptr_off = ctors_off + i
+                orig_ptr = r32(image, ptr_off)
+                
+                # Se o ponteiro for válido (não for zero nem o terminador -1) e não tiver sido realocado
+                if orig_ptr != 0 and orig_ptr != 0xFFFFFFFF and orig_ptr < base:
+                    w32(image, ptr_off, orig_ptr + base)
+                    rel_count += 1
+            print(f"[parse_elf] Construtores globais realocados para a RAM.")
+
         self._relocated_image = image
-        print(f"[parse_elf] {rel_count} relocações aplicadas.")
+        print(f"[parse_elf] {rel_count} relocações aplicadas no total.")
 
     def export_json(self, out_path):
+        ctors_addr, ctors_size = 0, 0
+        for sec in self.sections:
+            if sec.name == ".ctors":
+                ctors_addr = sec.addr + (self.load_base if self.e_type == ET_SCE_PRX else 0)
+                ctors_size = sec.size
+                break
+
         meta = {
-            "entry"         : self.entry,
-            "load_base"     : self.load_base,
-            "code_segments" : [{"vaddr": s.p_vaddr + self.load_base, "offset": s.p_offset, "size": s.p_filesz} for s in self.segments if s.is_executable()],
-            "hle_imports"   : self.hle_imports # A chave de ouro para os syscalls
+            "entry": self.entry,
+            "load_base": self.load_base,
+            "gp_value": self.gp_value + (self.load_base if self.e_type == ET_SCE_PRX else 0) if self.gp_value else 0,
+            "ctors_addr": ctors_addr,
+            "ctors_size": ctors_size,
+            "code_segments": [{"vaddr": s.p_vaddr + (self.load_base if self.e_type == ET_SCE_PRX else 0), "offset": s.p_offset, "size": s.p_filesz} for s in self.segments if s.is_executable()],
+            "hle_imports": self.hle_imports
         }
         with open(out_path, "w") as f: json.dump(meta, f, indent=2)
-        with open(out_path.replace(".json", "_image.bin"), "wb") as f: f.write(self._relocated_image)
-        print(f"[parse_elf] Metadados e Imagem exportados.")
+        with open(out_path.replace(".json", "_image.bin"), "wb") as f: f.write(getattr(self, "_relocated_image", self._raw))
+        print(f"[parse_elf] Metadados exportados para {out_path}")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2: sys.exit(1)
