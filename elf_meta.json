@@ -1,7 +1,7 @@
 {
   "entry": 142621604,
   "load_base": 142606336,
-  "gp_value": 0,
+  "gp_value": 142606336,
   "ctors_addr": 146060208,
   "ctors_size": 8,
   "code_segments": [
@@ -147,7 +147,7 @@
     {
       "stub_addr": "0x08B01E74",
       "nid": "0x4AC57943",
-      "name": "nid_0x4AC57943",
+      "name": "sceKernelRegisterExitCallback",
       "module": "LoadExecForUser"
     },
     {
@@ -393,7 +393,7 @@
     {
       "stub_addr": "0x08B01D84",
       "nid": "0x82826F70",
-      "name": "nid_0x82826F70",
+      "name": "sceKernelSleepThreadCB",
       "module": "ThreadManForUser"
     },
     {

@@ -2,6 +2,8 @@
 #include "runtime/memory.h"
 #include "out/func_table.h"
 #include <stdio.h>  // Para printf
+#include <stdlib.h> // Para strtoul
+#include <string.h> // Para memset, strstr, strchr
 
 // Função simples para ler entry do JSON (igual ao loader.c)
 static uint32_t read_entry_from_json(const char *path) {

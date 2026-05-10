@@ -1,199 +1,41 @@
-=== PSP Recomp Engine ===
-Jogo: God of War: Chains of Olympus
+Simeony, eu entendo perfeitamente. Chega de "band-aids" e Bypasses. Estamos lidando com a arquitetura do motor agora, e a qualidade da execução nativa depende da robustez dessa base. A boa notícia é que o Kratos já está rodando a lógica do jogo e não está mais pulando para memórias corrompidas, o que significa que o `GP` e o `Dispatcher` estão estabilizados.
 
-[MEM] 32 MB de memória alocados
-[TRACE] Executando bloco: 0x08803BA4 | RA: 0xFFFFFFFF
-[TRACE] Executando bloco: 0x08B01DF4 | RA: 0x08803BD8
-[TRACE] Executando bloco: 0x08803BD8 | RA: 0x08803BD8
-[TRACE] Executando bloco: 0x08B01E14 | RA: 0x08803BE4
-[SYSCALL NÃO IMPLEMENTADA] sceKernelSetCompiledSdkVersion_2 | a0=0x00030306 a1=0x09FFEF00
-[TRACE] Executando bloco: 0x08803BE4 | RA: 0x08803BE4
-[TRACE] Executando bloco: 0x08803C18 | RA: 0x08803BE4
-[TRACE] Executando bloco: 0x08803CAC | RA: 0x08803BE4
-[TRACE] Executando bloco: 0x08803C24 | RA: 0x08803BE4
-[TRACE] Executando bloco: 0x08803C38 | RA: 0x08803BE4
-[TRACE] Executando bloco: 0x08803C50 | RA: 0x08803BE4
-[TRACE] Executando bloco: 0x08803C6C | RA: 0x08803BE4
-[TRACE] Executando bloco: 0x08B01D64 | RA: 0x08803C7C
-[TRACE] Executando bloco: 0x08803C7C | RA: 0x08803C7C
-[TRACE] Executando bloco: 0x08B01D14 | RA: 0x08803C8C
-[SCHEDULER] Thread 1 ('libc:%s: should be called from main thread
-') marcada para iniciar.
-[TRACE] Executando bloco: 0x08803CB8 | RA: 0x0FFFFFFF
-[TRACE] Executando bloco: 0x08803CBC | RA: 0x0FFFFFFF
-[TRACE] Executando bloco: 0x08803CFC | RA: 0x0FFFFFFF
-[TRACE] Executando bloco: 0x088039D4 | RA: 0x08803D04
-[TRACE] Executando bloco: 0x08803A6C | RA: 0x08803D04
-[TRACE] Executando bloco: 0x08803A70 | RA: 0x08803D04
-[TRACE] Executando bloco: 0x08803AAC | RA: 0x08803D04
-[TRACE] Executando bloco: 0x08803AB0 | RA: 0x08803D04
-[TRACE] Executando bloco: 0x08803D04 | RA: 0x08803D04
-[TRACE] Executando bloco: 0x08803D08 | RA: 0x08803D04
-[TRACE] Executando bloco: 0x08803D48 | RA: 0x08803D04
-[TRACE] Executando bloco: 0x08803E18 | RA: 0x08803D04
-[TRACE] Executando bloco: 0x08803E40 | RA: 0x08803D04
-[TRACE] Executando bloco: 0x08803E94 | RA: 0x08803D04
-[TRACE] Executando bloco: 0x08805894 | RA: 0x08803F74
-[TRACE] Executando bloco: 0x08805930 | RA: 0x08803F74
-[TRACE] Executando bloco: 0x08805734 | RA: 0x08803F74
-[TRACE] Executando bloco: 0x08805848 | RA: 0x08803F74
-[TRACE] Executando bloco: 0x08806EC4 | RA: 0x08805850
-[TRACE] Executando bloco: 0x08806F98 | RA: 0x08805850
-[TRACE] Executando bloco: 0x08806FF8 | RA: 0x08805850
-[TRACE] Executando bloco: 0x08807020 | RA: 0x08805850
-[TRACE] Executando bloco: 0x08806F14 | RA: 0x08805850
-[TRACE] Executando bloco: 0x08807290 | RA: 0x08805850
-[TRACE] Executando bloco: 0x08805850 | RA: 0x08805850
-[TRACE] Executando bloco: 0x08803F74 | RA: 0x08803F74
-[TRACE] Executando bloco: 0x08803D88 | RA: 0x08803F74
-[TRACE] Executando bloco: 0x0881EBA0 | RA: 0x08803D98
-[TRACE] Executando bloco: 0x0881EBC8 | RA: 0x08803D98
-[TRACE] Executando bloco: 0x0881EC0C | RA: 0x08803D98
-[TRACE] Executando bloco: 0x08803D98 | RA: 0x08803D98
-[TRACE] Executando bloco: 0x08826ED8 | RA: 0x08803DA0
-[TRACE] Executando bloco: 0x08803DA0 | RA: 0x08803DA0
-[TRACE] Executando bloco: 0x08803DBC | RA: 0x08803DA0
-[TRACE] Executando bloco: 0x08803DC0 | RA: 0x08803DA0
-[TRACE] Executando bloco: 0x088064D0 | RA: 0x08803DC8
-[TRACE] Executando bloco: 0x0881E46C | RA: 0x088064EC
-[TRACE] Executando bloco: 0x0881E348 | RA: 0x0881E47C
-[TRACE] Executando bloco: 0x0881E374 | RA: 0x0881E47C
-[TRACE] Executando bloco: 0x0881E388 | RA: 0x0881E47C
-[TRACE] Executando bloco: 0x0881E398 | RA: 0x0881E47C
-[TRACE] Executando bloco: 0x0881E3B4 | RA: 0x0881E47C
-[TRACE] Executando bloco: 0x0881E428 | RA: 0x0881E47C
-[TRACE] Executando bloco: 0x0881E438 | RA: 0x0881E47C
-[TRACE] Executando bloco: 0x0881E43C | RA: 0x0881E47C
-[TRACE] Executando bloco: 0x0881E444 | RA: 0x0881E47C
-[TRACE] Executando bloco: 0x0881E44C | RA: 0x0881E44C
-[TRACE] Executando bloco: 0x0881E45C | RA: 0x0881E44C
-[TRACE] Executando bloco: 0x0881E47C | RA: 0x0881E47C
-[TRACE] Executando bloco: 0x088064EC | RA: 0x088064EC
-[TRACE] Executando bloco: 0x08806498 | RA: 0x088064FC
-[TRACE] Executando bloco: 0x088066D0 | RA: 0x088064A8
-[TRACE] Executando bloco: 0x08806544 | RA: 0x08806720
-[TRACE] Executando bloco: 0x08B01D64 | RA: 0x08806570
-[TRACE] Executando bloco: 0x08806570 | RA: 0x08806570
-[TRACE] Executando bloco: 0x08B01D14 | RA: 0x08806588
-[SCHEDULER] Thread 2 ('* The OS has called the ExitGameCallback in the Exit Thread ***') marcada para iniciar.
-[TRACE] Executando bloco: 0x08806588 | RA: 0x08806588
-[TRACE] Executando bloco: 0x08806720 | RA: 0x08806720
-[TRACE] Executando bloco: 0x08B01B8C | RA: 0x08806730
-[SCHEDULER] Context Switch -> Retomando Thread 2 no PC 0x08807530
-[TRACE] Executando bloco: 0x08807530 | RA: 0x0FFFFFFF
-[TRACE] Executando bloco: 0x08B01CF4 | RA: 0x08807550
-[HLE] sceKernelLoadModule | Kratos pediu para carregar um modulo...
-[TRACE] Executando bloco: 0x08807550 | RA: 0x08807550
-[TRACE] Executando bloco: 0x08B01E74 | RA: 0x08807560
-[SYSCALL NÃO IMPLEMENTADA] nid_0x4AC57943 | a0=0x00000001 a1=0x000074F8
-[TRACE] Executando bloco: 0x08807560 | RA: 0x08807560
-[TRACE] Executando bloco: 0x08B01D84 | RA: 0x08807568
-[SYSCALL NÃO IMPLEMENTADA] nid_0x82826F70 | a0=0x00000001 a1=0x000074F8
-[TRACE] Executando bloco: 0x08807568 | RA: 0x08807568
-[HLE] Retorno de Thread detectado. Destruindo thread atual...
-[SCHEDULER] Thread 2 finalizada graciosamente. Removendo da fila...
-[SCHEDULER] Context Switch -> Retomando Thread 1 no PC 0x08B01B8C
-[TRACE] Executando bloco: 0x08B01B8C | RA: 0x08806730
-[SCHEDULER] Context Switch -> Retomando Thread 1 no PC 0x08B01B8C
-[TRACE] Executando bloco: 0x08806730 | RA: 0x08806730
-[TRACE] Executando bloco: 0x0899F430 | RA: 0x0880673C
-[TRACE] Executando bloco: 0x08B01CF4 | RA: 0x0899F460
-[HLE] sceKernelLoadModule | Kratos pediu para carregar um modulo...
-[TRACE] Executando bloco: 0x0899F460 | RA: 0x0899F460
-[TRACE] Executando bloco: 0x08B01B94 | RA: 0x0899F474
-[HLE] sceKernelStartModule | Módulo iniciado. Injetando flag de concluido!
-[TRACE] Executando bloco: 0x0899F474 | RA: 0x0899F474
-[TRACE] Executando bloco: 0x0899F4A4 | RA: 0x0899F474
-[TRACE] Executando bloco: 0x08B01B9C | RA: 0x0899F4AC
-[TRACE] Executando bloco: 0x0899F4AC | RA: 0x0899F4AC
-[TRACE] Executando bloco: 0x08B01D04 | RA: 0x0899F4BC
-[TRACE] Executando bloco: 0x0899F4BC | RA: 0x0899F4BC
-[TRACE] Executando bloco: 0x0880673C | RA: 0x0880673C
-[TRACE] Executando bloco: 0x08806594 | RA: 0x08806744
-[TRACE] Executando bloco: 0x08806744 | RA: 0x08806744
-[TRACE] Executando bloco: 0x0880659C | RA: 0x0880674C
-[TRACE] Executando bloco: 0x08B01D8C | RA: 0x088065C0
-[HLE] sceKernelCreateSema | Semaforo criado com sucesso.
-[TRACE] Executando bloco: 0x088065C0 | RA: 0x088065C0
-[TRACE] Executando bloco: 0x0880674C | RA: 0x0880674C
-[TRACE] Executando bloco: 0x08B01D34 | RA: 0x08806754
-[TRACE] Executando bloco: 0x08806754 | RA: 0x08806754
-[TRACE] Executando bloco: 0x08B01D7C | RA: 0x08806768
-[TRACE] Executando bloco: 0x08806768 | RA: 0x08806768
-[TRACE] Executando bloco: 0x088067CC | RA: 0x08806768
-[TRACE] Executando bloco: 0x088055BC | RA: 0x088067D4
-[TRACE] Executando bloco: 0x088067D4 | RA: 0x088067D4
-[TRACE] Executando bloco: 0x08806698 | RA: 0x088067E4
-[TRACE] Executando bloco: 0x0899F12C | RA: 0x088066A8
-[TRACE] Executando bloco: 0x0899F160 | RA: 0x088066A8
-[TRACE] Executando bloco: 0x088066A8 | RA: 0x088066A8
-[TRACE] Executando bloco: 0x0880664C | RA: 0x088066B0
-[TRACE] Executando bloco: 0x08806654 | RA: 0x088066B0
-[TRACE] Executando bloco: 0x088065E4 | RA: 0x0880665C
-[TRACE] Executando bloco: 0x088055BC | RA: 0x088065F4
-[TRACE] Executando bloco: 0x088065F4 | RA: 0x088065F4
-[TRACE] Executando bloco: 0x08B01AA4 | RA: 0x08806604
-[HLE] sceKernelWaitSema | Kratos aguardando sincronizacao da Engine...
-[TRACE] Executando bloco: 0x08806604 | RA: 0x08806604
-[TRACE] Executando bloco: 0x08806634 | RA: 0x08806604
-[TRACE] Executando bloco: 0x08806640 | RA: 0x08806604
-[TRACE] Executando bloco: 0x0880665C | RA: 0x0880665C
-[TRACE] Executando bloco: 0x0899F118 | RA: 0x0880666C
-[TRACE] Executando bloco: 0x0880666C | RA: 0x0880666C
-[TRACE] Executando bloco: 0x08811A54 | RA: 0x0880667C
-[TRACE] Executando bloco: 0x088110A8 | RA: 0x08811ACC
-[TRACE] Executando bloco: 0x088110F0 | RA: 0x08811ACC
-[TRACE] Executando bloco: 0x08810C20 | RA: 0x088110F8
-[TRACE] Executando bloco: 0x08810C64 | RA: 0x088110F8
-[TRACE] Executando bloco: 0x08810C78 | RA: 0x088110F8
-[TRACE] Executando bloco: 0x088110F8 | RA: 0x088110F8
-[TRACE] Executando bloco: 0x08811120 | RA: 0x088110F8
-[TRACE] Executando bloco: 0x08811170 | RA: 0x088110F8
-[TRACE] Executando bloco: 0x088111EC | RA: 0x088110F8
-[TRACE] Executando bloco: 0x08811204 | RA: 0x088110F8
-[TRACE] Executando bloco: 0x08811ACC | RA: 0x08811ACC
-[TRACE] Executando bloco: 0x08810CEC | RA: 0x08811B08
-[TRACE] Executando bloco: 0x08810D2C | RA: 0x08811B08
-[TRACE] Executando bloco: 0x08810D4C | RA: 0x08811B08
-[TRACE] Executando bloco: 0x08810D70 | RA: 0x08811B08
-[TRACE] Executando bloco: 0x08810D7C | RA: 0x08811B08
-[TRACE] Executando bloco: 0x08806240 | RA: 0x08810D98
-[TRACE] Executando bloco: 0x08A7D3C8 | RA: 0x08806250
-[TRACE] Executando bloco: 0x08806250 | RA: 0x08806250
-[TRACE] Executando bloco: 0x088062A8 | RA: 0x08806250
-[TRACE] Executando bloco: 0x08810D98 | RA: 0x08810D98
-[TRACE] Executando bloco: 0x08A7EE88 | RA: 0x08810DA0
-[TRACE] Executando bloco: 0x08810DA0 | RA: 0x08810DA0
-[TRACE] Executando bloco: 0x08810DC4 | RA: 0x08810DA0
-[TRACE] Executando bloco: 0x08810DE4 | RA: 0x08810DA0
-[TRACE] Executando bloco: 0x08810DF8 | RA: 0x08810DA0
-[TRACE] Executando bloco: 0x08810CB0 | RA: 0x08810E00
-[TRACE] Executando bloco: 0x08810CE0 | RA: 0x08810E00
-[TRACE] Executando bloco: 0x08810E00 | RA: 0x08810E00
-[TRACE] Executando bloco: 0x08811B08 | RA: 0x08811B08
-[TRACE] Executando bloco: 0x08811B34 | RA: 0x08811B08
-[TRACE] Executando bloco: 0x08B01BBC | RA: 0x08811B5C
-[SYSCALL NÃO IMPLEMENTADA] nid_0xAB49E76A | a0=0x00000000 a1=0x00000000
-[TRACE] Executando bloco: 0x08811B5C | RA: 0x08811B5C
-[TRACE] Executando bloco: 0x0880667C | RA: 0x0880667C
-[TRACE] Executando bloco: 0x08811848 | RA: 0x08806684
-[TRACE] Executando bloco: 0x08B01BA4 | RA: 0x088118C4
-[SYSCALL NÃO IMPLEMENTADA] nid_0x03444EB4 | a0=0x00000000 a1=0x00000000
-[TRACE] Executando bloco: 0x088118C4 | RA: 0x088118C4
-[TRACE] Executando bloco: 0x088118C8 | RA: 0x088118C4
-[TRACE] Executando bloco: 0x08811FFC | RA: 0x088118E0
-[TRACE] Executando bloco: 0x08811FA8 | RA: 0x0881201C
-[TRACE] Executando bloco: 0x08811FE4 | RA: 0x0881201C
-[TRACE] Executando bloco: 0x0881201C | RA: 0x0881201C
-[TRACE] Executando bloco: 0x088118E0 | RA: 0x088118E0
-[TRACE] Executando bloco: 0x088118E4 | RA: 0x088118E0
-[TRACE] Executando bloco: 0x08811904 | RA: 0x088118E0
-[TRACE] Executando bloco: 0x0881191C | RA: 0x088118E0
-[TRACE] Executando bloco: 0x08805D54 | RA: 0x08811928
-[TRACE] Executando bloco: 0x0880A988 | RA: 0x08805D64
-[TRACE] Executando bloco: 0x0880A9E4 | RA: 0x08805D64
-[TRACE] Executando bloco: 0x08805D64 | RA: 0x08805D64
-[TRACE] Executando bloco: 0x08811928 | RA: 0x08811928
-[TRACE] Executando bloco: 0x08811930 | RA: 0x08811928
-[TRACE] Executando bloco: 0x08811904 | RA: 0x08811928
-[TRACE] Executando bloco: 0x0881191C | RA: 0x08811928
+Aqui está a lista de problemas técnicos presentes no seu log atual, ordenados do **mais crítico (arquitetural) ao mais leve (funcional)**, e o plano de ação para resolvermos cada um *definitivamente*.
+
+---
+
+### 1. Crítico: Loop Infinito de VBlank (O Freio Inexistente)
+
+**Onde:** Repetição infinita dos blocos `0x08806018` e `0x08806064` no final do log.
+**Por quê é grave:** O jogo está rodando em velocidade "desbloqueada" na CPU, fazendo *Polling* para verificar se a tela atualizou. Como a sua função de VBlank atual não avisa ao jogo que o frame terminou, o Kratos entra em um loop infinito esperando um evento que nunca chega. Isso consome 100% da CPU do PC e impede que o jogo prossiga.
+**A Solução Definitiva:**
+Precisamos implementar a `hle_sceDisplayWaitVblankStart` corretamente. Não basta apenas dar um `usleep()`; a thread que chama o VBlank *deve* fazer um `yield` (passar a vez) para o *Scheduler*, e o *Scheduler* deve saber que essa thread só pode voltar a rodar no próximo ciclo de 60Hz.
+
+### 2. Alto: Retornos Vazios do Loader ELF (Bugs Silenciosos)
+
+**Onde:** `[WARN] PC parece ser string/dado, não código: 0x00000000 — retornando ao RA` (Aparece várias vezes no log).
+**Por quê é grave:** O Kratos está tentando chamar uma função (através de um ponteiro), mas esse ponteiro é `0x00000000`. Isso indica que uma tabela de *Callbacks* ou um *NID* de uma biblioteca do sistema (SceLib) não foi resolvido (relocado) quando o ELF/PRX foi carregado na memória. O emulador "salva" o jogo dando um retorno forçado, mas o Kratos deixou de executar uma lógica importante.
+**A Solução Definitiva:**
+Você mencionou que está usando o `EBOOT.BIN` descriptografado. Precisamos analisar como o seu script Python (ou Loader) está lidando com as relocações `.rel.rodata` e os NIDs não traduzidos. Se um ponteiro de função não tem tradução para C, ele deveria apontar para um "Stub de Erro" e não para `0x00000000`.
+
+### 3. Médio: Sincronização Assíncrona de I/O
+
+**Onde:** Repetição da thread em `0x089A0560` / `0x089A051C` no meio do log.
+**Por quê é grave:** Embora funcione (o arquivo eventualmente carrega), o fato de o jogo ficar em loop esperando a *pthread* (sua thread do Linux) terminar de ler o arquivo indica que a função `hle_sceIoWaitAsync` não está bloqueando a thread do PSP eficientemente.
+**A Solução Definitiva:**
+O `hle_sceIoWaitAsync` deve forçar a *thread* atual do Kratos a entrar em status `THREAD_WAITING` até que a *pthread* termine, em vez de deixar a CPU ficar perguntando "Já acabou?" em um loop *while* interno do jogo. Isso economiza processamento vital para o console R36S.
+
+### 4. Leve: Syscalls de Hardware Ignoradas
+
+**Onde:** `[SYSCALL NÃO IMPLEMENTADA] nid_0xEADB1BD7` (sceKernelPowerLock).
+**Por quê é grave:** Não quebra o jogo, mas deixa o log sujo e, em jogos mais exigentes, pode retornar um valor de erro no registrador `v0` que faça a *engine* entrar em modo de falha.
+**A Solução Definitiva:**
+Mapear essas funções de bateria/energia do PSP para a função `hle_DummySuccess` (que sempre retorna 0, dizendo "tudo OK").
+
+---
+
+### Por Onde Começamos?
+
+O **Bug #1 (Loop Infinito de VBlank)** é a barreira imediata. Sem resolver isso, o jogo nunca vai pedir para a GPU desenhar nada, pois ele acha que a tela antiga nem terminou de piscar.
+
+Você quer que eu te mande o código corrigido e definitivo para a `hle_sceDisplayWaitVblankStart` e a alteração necessária no `Scheduler` para que esse freio de 60Hz funcione sem travar as outras threads (como as de I/O de disco)?

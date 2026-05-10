@@ -29,6 +29,10 @@ BUILD_DIR := build
 # ── Flags de compilação ────────────────────────────────────────────────────
 CFLAGS_COMMON := \
     -std=c11 \
+    -pthread \
+	-g \
+	-O0 \
+	-fsanitize=address\
     -O2 \
     -Wall \
     -Wno-unused-label \
@@ -45,16 +49,19 @@ CFLAGS_ARM64 := $(CFLAGS_COMMON) \
     -ffunction-sections \
     -fdata-sections
 
-LDFLAGS_ARM64 := -Wl,--gc-sections -lm
+LDFLAGS_ARM64 := -Wl,--gc-sections -lm -pthread -lSDL2 -lpthread -fsanitize=address
 
 # ── Fontes ─────────────────────────────────────────────────────────────────
 RUNTIME_SRCS := \
+    main.c \
     runtime/memory.c \
     runtime/syscalls.c \
     runtime/loader.c \
     runtime/dispatcher.c \
-	runtime/scheduler.c
-
+    runtime/scheduler.c \
+    runtime/sceCtrl.c \
+	runtime/gpu.c
+	
 OUT_SRCS     := $(wildcard out/funcs/*.c) out/func_table.c
 
 ALL_SRCS     := $(RUNTIME_SRCS) $(OUT_SRCS)
@@ -117,10 +124,10 @@ $(TARGET)_arm64: $(OBJS_ARM64)
 $(BUILD_DIR)/native/%.o: %.c
 	@echo "  [native] $<"
 	@$(CC_NATIVE) $(CFLAGS_COMMON) -c $< -o $@
-
+	
 $(TARGET)_native: $(OBJS_NATIVE)
 	@echo "[LINK native] $(TARGET)_native"
-	@$(CC_NATIVE) $(CFLAGS_COMMON) $(OBJS_NATIVE) -o $@ -lm
+	@$(CC_NATIVE) $(CFLAGS_COMMON) $(OBJS_NATIVE) -o $@ -lm -pthread -lSDL2
 	@echo "=== Build nativo concluído: $(TARGET)_native ==="
 
 # ── Limpeza ────────────────────────────────────────────────────────────────

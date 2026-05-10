@@ -29,6 +29,8 @@ void mem_load_segment(uint8_t *mem, const uint8_t *data,
     printf("[MEM] Segmento carregado: vaddr=0x%08X size=0x%X\n", vaddr, size);
 }
 
+
+
 void mem_free(uint8_t *mem) {
     free(mem);
 }

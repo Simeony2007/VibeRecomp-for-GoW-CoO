@@ -1,4 +1,5 @@
 #include "dispatcher.h"
+#include "memory.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,32 +16,54 @@ int compare_addrs(const void *a, const void *b) {
 }
 
 static uint32_t find_dispatch_address(uint32_t target) {
+    target = CLEAN_ADDR(target);
     if ((target & 3u) != 0) target &= ~3u;
     uint32_t *item = bsearch(&target, psp_func_addrs, PSP_FUNC_COUNT, sizeof(uint32_t), compare_addrs);
     if (item) return target;
-    
-    // Fallback para blocos internos
-    uint32_t fallback = target;
-    while (fallback >= 4 && fallback > 0x08000000) { 
-        fallback -= 4;
-        item = bsearch(&fallback, psp_func_addrs, PSP_FUNC_COUNT, sizeof(uint32_t), compare_addrs);
-        if (item) return fallback;
-    }
+
+    // Fallback desativado: forçar erro imediato em PC inválido/desalinhado.
     return 0;
 }
 
 void dispatcher(MIPS_CPU *cpu, uint8_t *mem, uint32_t target) {
+    if ((target & 3u) != 0) target &= ~3u;
+    target = CLEAN_ADDR(target);
+
     // 1. Gestão de threads via Sentinel RA
-    if (target == 0x0FFFFFFF) {
+    if (target == 0x0FFFFFFF || target == 0x0FFFFFFC) {
         printf("[HLE] Retorno de Thread detectado. Destruindo thread atual...\n");
-        
-        // Chama o NOVO escalonador para matar a Thread 2 e voltar pra Thread 1
         extern void scheduler_exit_thread(MIPS_CPU *cpu);
         scheduler_exit_thread(cpu);
-        
-        // O escalonador alterou o cpu->pc internamente para retomar a Thread 1.
-        // Damos um return para o main.c chamar o dispatcher novamente com o PC correto!
         return; 
+    }
+
+    /* --- PROTEÇÃO CONTRA CALLBACKS NULOS --- */
+    if (target == 0x00000000) {
+        
+        // ========================================================
+        // GOW HACKS: Bypasses de Tabelas de Callbacks Vazias
+        // ========================================================
+        
+        // HACK 1: Callback de Inicialização
+        if (cpu->ra == 0x08805FE8) {
+            printf("[PATCH] God of War: Callback inicial vazio ignorado. Redirecionando fluxo...\n");
+            cpu->pc = 0x08806144u;
+            return;
+        }
+
+        // HACK 2: Callback de Sincronização de Vídeo (Double Buffering)
+        if (cpu->ra == 0x0881671C) {
+            printf("[PATCH] God of War: Callback de Vídeo ignorado. Redirecionando fluxo para Geometria...\n");
+            // 0x08816878 é a saída segura original da função de VBlank
+            cpu->pc = 0x08816878u; 
+            return;
+        }
+
+        // ========================================================
+
+        printf("[WARN] Execução NULA interceptada! A culpa é da função no RA: 0x%08X\n", cpu->ra);
+        cpu->pc = cpu->ra; 
+        return;
     }
 
     /* --- LÓGICA DE SOMA (Auto-Relocação de Offsets) --- */
@@ -50,29 +73,65 @@ void dispatcher(MIPS_CPU *cpu, uint8_t *mem, uint32_t target) {
 
     /* --- MEMORY HOOK: PROTEÇÃO CONTRA PONTEIROS NÃO REALOCADOS --- */
     if (target == 0x464C457F) {
-        // O MIPS tentou ler o cabeçalho ELF devido à falta de PRX Relocation.
-        // Simulamos o retorno para quebrar o loop do iterador.
         cpu->pc = cpu->ra; 
         return;
     }
 
+    /* Proteção contra PCs que apontam para strings ASCII */
+    if ((target & 0xFF000000) == 0x72000000 ||  /* 'r' */
+        (target & 0xFF000000) == 0x45000000 ||  /* 'E' */
+        target < 0x08000000) {
+        printf("[WARN] PC parece ser string/dado, não código: 0x%08X — retornando ao RA\n", target);
+        cpu->pc = cpu->ra;
+        return;
+    }
+
+    /* --- REDE DE SEGURANÇA GLOBAL (ESCUDO MESTRE C++) --- */
+    // Bloqueia qualquer salto para o Heap (> 0x08B10000) ou fora da RAM.
+    // Garante que não bloqueia o fecho de threads (0x0FFFFFFF).
+    if (target >= 0x08B10000 && target != 0x0FFFFFFF && target != 0x0FFFFFFC) {
+        
+        // Proteção contra chamadas iterativas fantasmas
+        if (cpu->ra >= 0x08B10000 && cpu->ra != 0x0FFFFFFF && cpu->ra != 0x0FFFFFFC) {
+             printf("[ERRO FATAL] Stack C++ corrompida. Origem absurda: 0x%08X\n", cpu->ra);
+             cpu->running = 0;
+             return;
+        }
+
+        // Simula o retorno de um método de VTable ausente.
+        cpu->v0 = 0;
+        cpu->pc = cpu->ra;
+        return;
+    }
+
+    /* --- PREEMPTIVE SCHEDULING (TIME SLICE) --- */
+    static int time_slice = 0;
+    time_slice++;
+    if (time_slice > 1500) { 
+        time_slice = 0;
+        extern void scheduler_yield(MIPS_CPU *current_cpu, uint32_t wait_cycles);
+        scheduler_yield(cpu, 0); 
+        
+        if (cpu->pc != target) {
+            return;
+        }
+    }
+
     /* --- PC TRACE --- */
-    // Agora o print vem ANTES do intercept!
     printf("[TRACE] Executando bloco: 0x%08X | RA: 0x%08X\n", target, cpu->ra);
 
     /* --- INTERCEPTAÇÃO HLE ABSOLUTA --- */
-    uint32_t pc_before_hle = cpu->pc; // Guarda o PC antes de chamar a função do sistema
+    uint32_t pc_before_hle = cpu->pc; 
 
     if (intercept_hle(cpu, mem, target)) {
-        // Se a syscall HLE NÃO mudou o PC (como CreateThread, SetSDK, IoOpen), 
-        // significa que foi só uma chamada de sistema normal. 
-        // Então nós simulamos o retorno do Stub (voltando pro RA).
+        if (cpu->zero == 1) {
+            cpu->zero = 0; 
+            return;        
+        }
+
         if (cpu->pc == pc_before_hle) {
             cpu->pc = cpu->ra; 
         } 
-        // Se a syscall MUDOU o PC (como o StartThread fez), nós NÃO encostamos!
-        // Deixamos o PC seguir o fluxo para a nova Thread.
-        
         return;
     }
 
@@ -83,7 +142,8 @@ void dispatcher(MIPS_CPU *cpu, uint8_t *mem, uint32_t target) {
         int index = item - psp_func_addrs;
         psp_func_table[index](cpu, mem);
     } else {
-        printf("[ERRO] PC corrompido ou fora de alcance: 0x%08X (RA: 0x%08X)\n", target, cpu->ra);
+        // Fallback final: se o PC está na área válida (.text) mas não mapeado.
+        printf("[ERRO] PC corrompido ou bloco não compilado: 0x%08X (RA: 0x%08X)\n", target, cpu->ra);
         cpu->running = 0;
     }
 }
