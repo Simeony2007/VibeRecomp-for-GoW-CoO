@@ -106,12 +106,18 @@ typedef struct {
 // Robust helper to perform safe dynamic pointer relocations
 static inline uint32_t relocate_addr(uint32_t addr, uint32_t load_bias) {
     if (addr == 0) return 0;
-    // If the address has already been relocated to standard RAM user space, keep it
-    if (addr >= 0x08000000 && addr < 0x0C000000) {
-        return addr;
+    // Clear cache, uncached, and kernel segment bits to inspect the relative address
+    uint32_t relative_addr = addr & 0x0FFFFFFF;
+    if (relative_addr >= 0x08000000 && relative_addr < 0x0C000000) {
+        // Already relocated (either as 0x08xxxxxx, 0x48xxxxxx, 0x88xxxxxx, or 0xA8xxxxxx)
+        // Normalize it to standard cached user RAM space (0x08xxxxxx) for consistency
+        return 0x08000000 + (relative_addr & 0x03FFFFFF);
     }
-    // Otherwise, apply the relative bias offset
-    return addr + load_bias;
+    // If relative_addr is smaller than 0x04000000, it's unrelocated, so apply load_bias
+    if (relative_addr < 0x04000000) {
+        return relative_addr + load_bias;
+    }
+    return addr;
 }
 
 // Check if SceModuleInfo pointer is completely valid and clean
@@ -120,7 +126,7 @@ static inline int is_valid_module_info(MIPS_CPU *cpu, SceModuleInfo *mod, uint32
     if (!mod) return 0;
 
     // Safety check on attribute (0x0000 = user, 0x1000 = kernel, 0x0006 = standard)
-    if (mod->modAttribute != 0x0000 && mod->modAttribute != 0x1000 && mod->modAttribute != 0x0006) return 0;
+    if (mod->modAttribute > 0x1FFF) return 0;
 
     // Safety checks on pointers - Relocated to actual RAM limits (relocated pointers can legitimately be 0!)
     uint32_t gp = relocate_addr(mod->gp_value, load_bias);
@@ -285,8 +291,14 @@ int load_eboot(MIPS_CPU *cpu, const char *filepath, uint32_t *entry_point) {
     // --- SceModuleInfo OFFSET EXTRACTION FROM DECRYPTED ELF ---
     if (modinfo_offset == 0 && ehdr->e_phnum > 0) {
         Elf32_Phdr *first_phdr = (Elf32_Phdr*)(phdr_table);
-        modinfo_offset = first_phdr->p_paddr & 0x7FFFFFFF; // Clear the MSB kernel-mode flag if present
-        printf("[Loader] ELF format detected. Retrieved SceModuleInfo offset from first phdr p_paddr: 0x%08X\n", modinfo_offset);
+        // Standard ELF p_paddr is often 0 or equals p_vaddr. In PRX, first program header's p_paddr 
+        // is uniquely set to SceModuleInfo file offset (different from p_vaddr).
+        if (first_phdr->p_paddr != 0 && first_phdr->p_paddr != first_phdr->p_vaddr) {
+            modinfo_offset = first_phdr->p_paddr & 0x7FFFFFFF; // Clear the MSB kernel-mode flag if present
+            printf("[Loader] ELF format detected. Retrieved SceModuleInfo offset from first phdr p_paddr: 0x%08X\n", modinfo_offset);
+        } else {
+            printf("[Loader] Standard ELF detected. Skipping direct p_paddr modinfo offset to avoid false positives.\n");
+        }
     }
 
     // --- HLE LINKER & IMPORT STUB PATCHING (PRX RESOLVER) ---
@@ -294,11 +306,30 @@ int load_eboot(MIPS_CPU *cpu, const char *filepath, uint32_t *entry_point) {
 
     // 1. First path: check if the direct pointer is valid (passing load_bias for relocations)
     if (modinfo_offset != 0) {
-        uint32_t test_addr = relocate_addr(modinfo_offset, load_bias);
-        SceModuleInfo *mod = (SceModuleInfo *)mips_get_ptr(cpu, test_addr);
-        if (is_valid_module_info(cpu, mod, load_bias)) {
-            resolved_modinfo_addr = test_addr;
+        // Try to translate as a file offset
+        for (int i = 0; i < ehdr->e_phnum; i++) {
+            Elf32_Phdr *phdr = (Elf32_Phdr*)(phdr_table + i * ehdr->e_phentsize);
+            if (phdr->p_type == 1) { // PT_LOAD segment
+                if (modinfo_offset >= phdr->p_offset && modinfo_offset < phdr->p_offset + phdr->p_filesz) {
+                    uint32_t relative_offset = modinfo_offset - phdr->p_offset;
+                    resolved_modinfo_addr = phdr->p_vaddr + relative_offset + load_bias;
+                    break;
+                }
+            }
+        }
+
+        // Fallback: If not found as file offset, treat as reloc offset
+        if (resolved_modinfo_addr == 0) {
+            resolved_modinfo_addr = relocate_addr(modinfo_offset, load_bias);
+        }
+
+        // Check SceModuleInfo pointer validity
+        SceModuleInfo *mod = (SceModuleInfo *)mips_get_ptr(cpu, resolved_modinfo_addr);
+        if (mod && is_valid_module_info(cpu, mod, load_bias)) {
             printf("[HLE Linker] Direct modinfo offset is VALID. Using SceModuleInfo at virtual address 0x%08X.\n", resolved_modinfo_addr);
+        } else {
+            printf("[HLE Linker Warning] Direct modinfo validation failed at virtual address 0x%08X\n", resolved_modinfo_addr);
+            resolved_modinfo_addr = 0;
         }
     }
 
