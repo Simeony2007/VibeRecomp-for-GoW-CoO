@@ -29,6 +29,14 @@
 extern PatchedFallbackStub fallback_stubs[MAX_PATCHED_FALLBACKS];
 extern int fallback_stubs_count;
 extern uint32_t relocated_gp;
+
+// NOVO: pasta real onde o jogo vive (derivada de argv[1], ex: "./umd0CH").
+// FIX: sanitize_path()/custom_sanitize_path() estavam com "./umd0/" e "./"
+// fixos no codigo, sem nenhuma relacao com a pasta de onde o EBOOT.PBP foi
+// realmente aberto - por isso arquivos soltos do jogo (data.csz etc), que
+// ficam do LADO do EBOOT.PBP, nunca eram encontrados: o sceIoOpen procurava
+// no diretorio de trabalho do emulador, nao na pasta do jogo.
+char g_game_root[512] = ".";
 uint32_t g_module_entry_point = 0;
 // NOVO: contador de "power locks" ativos (sceKernelPowerLock incrementa,
 // sceKernelPowerUnlock decrementa). Nao simulamos suspensao de verdade,
@@ -300,31 +308,21 @@ static HLE_AudioChannel g_audio_channels[MAX_AUDIO_CHANNELS] = {0};
 static void custom_sanitize_path(char *dest, const char *src) {
     const char *p = src;
     char *d = dest;
-    const char *base = "./";
 
-    struct stat st;
+    // FIX: "./umd0/" fixo nao tinha nenhuma relacao com a pasta real do
+    // jogo (g_game_root, derivada de argv[1] - ex: "./umd0CH"). Um caminho
+    // sem prefixo tambem deve resolver pra dentro da pasta do jogo, e nao
+    // pro diretorio de trabalho do emulador ("./"), senao arquivos soltos
+    // que ficam do lado do EBOOT.PBP (ex: data.csz) nunca sao encontrados.
     if (strncmp(p, "umd0:/", 6) == 0 || strncmp(p, "disc0:/", 7) == 0) {
         int skip = (strncmp(p, "umd0:/", 6) == 0) ? 6 : 7;
-        if (stat("../umd0", &st) == 0 && S_ISDIR(st.st_mode) && stat("./umd0", &st) != 0) {
-            base = "../umd0/";
-        } else {
-            base = "./umd0/";
-        }
-        strcpy(d, base);
-        d += strlen(base);
+        d += snprintf(d, 480, "%s/", g_game_root);
         p += skip;
     } else if (strncmp(p, "ms0:/", 5) == 0) {
-        if (stat("../ms0", &st) == 0 && S_ISDIR(st.st_mode) && stat("./ms0", &st) != 0) {
-            base = "../ms0/";
-        } else {
-            base = "./ms0/";
-        }
-        strcpy(d, base);
-        d += strlen(base);
+        d += snprintf(d, 480, "%s/ms0/", g_game_root);
         p += 5;
     } else {
-        strcpy(d, "./");
-        d += 2;
+        d += snprintf(d, 480, "%s/", g_game_root);
     }
     while (*p) {
         if (*p == '\\') {
@@ -523,6 +521,76 @@ void hle_syscall(MIPS_CPU *cpu) {
     if (syscall_id == 0x22228) { hle_sceKernelCheckCallback(cpu); return; }
     if (syscall_id == 0x22229) { hle_sceKernelDeleteCallback(cpu); return; }
 
+    // FIX: sceDisplay* (0x60001-0x60003) e sceCtrl* (0x70001-0x70003) sao
+    // >= 0x50000, entao antes caiam direto no bloco generico de fallback
+    // logo abaixo. Nesse bloco 'idx = syscall_id - 0x50000' calculava um
+    // indice gigante (ex: 0x10001 pra 0x60001), sempre maior que
+    // fallback_stubs_count -> o 'if (idx < fallback_stubs_count)' falhava
+    // e a funcao retornava 0 SEM NENHUM PRINT, silenciosamente. Era
+    // exatamente isso que fazia o jogo "parar sem erro nenhum": o loop de
+    // frame (SetFrameBuf -> WaitVblank -> ReadCtrl -> repete) continuava
+    // girando pra sempre, so que 100% mudo, sem nunca configurar
+    // framebuffer/vblank/controle de verdade.
+    if (syscall_id == 0x60001) { // sceDisplaySetMode(mode, width, height)
+        g_display.mode = cpu->gpr[0x04];
+        g_display.disp_width = cpu->gpr[0x05];
+        g_display.disp_height = cpu->gpr[0x06];
+        printf("[HLE Display] sceDisplaySetMode(mode=%u, w=%u, h=%u)\n",
+               g_display.mode, g_display.disp_width, g_display.disp_height);
+        cpu->gpr[0x02] = 0;
+        cpu->pc = cpu->gpr[0x1F];
+        cpu->next_pc = cpu->pc + 4;
+        return;
+    }
+    if (syscall_id == 0x60002) { // sceDisplaySetFrameBuf(topaddr, stride, pixelformat, sync)
+        g_display.topaddr = cpu->gpr[0x04];
+        g_display.stride  = cpu->gpr[0x05];
+        g_display.format  = cpu->gpr[0x06];
+        g_display.sync    = cpu->gpr[0x07];
+        g_display.configured = true;
+        printf("[HLE Display] sceDisplaySetFrameBuf(topaddr=0x%08X, stride=%u, format=%u, sync=%u)\n",
+               g_display.topaddr, g_display.stride, g_display.format, g_display.sync);
+        cpu->gpr[0x02] = 0;
+        cpu->pc = cpu->gpr[0x1F];
+        cpu->next_pc = cpu->pc + 4;
+        return;
+    }
+    if (syscall_id == 0x60003) { // sceDisplayWaitVblankStart()
+        vblank_counter++;
+        cpu->gpr[0x02] = 0;
+        cpu->pc = cpu->gpr[0x1F];
+        cpu->next_pc = cpu->pc + 4;
+        return;
+    }
+    if (syscall_id == 0x70001 || syscall_id == 0x70002) { // sceCtrlReadBufferPositive / sceCtrlPeekBufferPositive
+        uint32_t pad_ptr = cpu->gpr[0x04];
+        void *dst = mips_get_ptr(cpu, pad_ptr);
+        if (dst != NULL) {
+            memcpy(dst, &g_ctrl_state, sizeof(PSP_CtrlData));
+        }
+        cpu->gpr[0x02] = 1; // numero de amostras lidas
+        cpu->pc = cpu->gpr[0x1F];
+        cpu->next_pc = cpu->pc + 4;
+        return;
+    }
+    if (syscall_id == 0x70003) { // sceCtrlSetSamplingCycle(cycle)
+        g_ctrl_sampling_cycle = cpu->gpr[0x04];
+        cpu->gpr[0x02] = 0;
+        cpu->pc = cpu->gpr[0x1F];
+        cpu->next_pc = cpu->pc + 4;
+        return;
+    }
+
+    if (syscall_id >= 0x60000 && syscall_id < 0x70000) {
+        printf("[HLE BUG/DEBUG] Display syscall 0x%05X at PC=0x%08X RA=0x%08X\n",
+           syscall_id, cpu->pc, cpu->gpr[31]);
+    }
+
+    if (syscall_id >= 0x70000 && syscall_id < 0x80000) {
+        printf("[HLE BUG/DEBUG] Ctrl syscall 0x%05X at PC=0x%08X RA=0x%08X\n",
+            syscall_id, cpu->pc, cpu->gpr[31]);
+    }
+
     // Intercept our custom fallback syscall
     if (syscall_id >= 0x50000) {
         int idx = syscall_id - 0x50000;
@@ -719,6 +787,21 @@ int main(int argc, char **argv) {
     const char *target_path = "umd0/PSP_GAME/SYSDIR/EBOOT.BIN";
     if (argc >= 2) {
         target_path = argv[1];
+    }
+
+    // NOVO: extrai a pasta de target_path pra usar como raiz do sistema de
+    // arquivos virtual (ver comentario na declaracao de g_game_root).
+    {
+        const char *last_slash = strrchr(target_path, '/');
+        if (last_slash != NULL) {
+            size_t dir_len = (size_t)(last_slash - target_path);
+            if (dir_len >= sizeof(g_game_root)) dir_len = sizeof(g_game_root) - 1;
+            memcpy(g_game_root, target_path, dir_len);
+            g_game_root[dir_len] = '\0';
+        } else {
+            strcpy(g_game_root, ".");
+        }
+        printf("[Boot] Raiz de dados do jogo definida como: '%s'\n", g_game_root);
     }
 
     char extracted_path[0x100];

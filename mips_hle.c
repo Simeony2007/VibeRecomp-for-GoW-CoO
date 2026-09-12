@@ -10,29 +10,32 @@
 #include <sys/stat.h>
 #include <ctype.h>
 
+// NOVO: pasta real do jogo, definida em main_v35.c a partir de argv[1].
+extern char g_game_root[512];
+
 /*
  * Case-insensitive case folding for Linux filesystem support (since PSP is case-insensitive [Filesystem])
  */
 static void sanitize_path(char *dest, const char *src) {
     const char *p = src;
     char *d = dest;
-    
-    // Check and remove mount protocols
+
+    // FIX: "./umd0/" fixo (e o "./" do caso sem prefixo) nao tinham
+    // nenhuma relacao com a pasta de onde o EBOOT.PBP foi realmente aberto
+    // (g_game_root). Isso fazia sceIoOpen("data.csz") procurar no
+    // diretorio de trabalho do emulador em vez da pasta do jogo, sempre
+    // falhando pra arquivos soltos que ficam do lado do EBOOT.PBP.
     if (strncmp(p, "umd0:/", 6) == 0) {
-        strcpy(d, "./umd0/");
-        d += 7;
+        d += snprintf(d, 480, "%s/", g_game_root);
         p += 6;
     } else if (strncmp(p, "ms0:/", 5) == 0) {
-        strcpy(d, "./ms0/");
-        d += 6;
+        d += snprintf(d, 480, "%s/ms0/", g_game_root);
         p += 5;
     } else if (strncmp(p, "disc0:/", 7) == 0) {
-        strcpy(d, "./umd0/");
-        d += 7;
+        d += snprintf(d, 480, "%s/", g_game_root);
         p += 7;
     } else {
-        strcpy(d, "./");
-        d += 2;
+        d += snprintf(d, 480, "%s/", g_game_root);
     }
 
     while (*p) {
