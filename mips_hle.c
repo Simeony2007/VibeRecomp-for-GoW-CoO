@@ -142,10 +142,22 @@ static int hle_sceIoOpen(MIPS_HLE_Kernel *kernel, const char *file_path, int fla
     char host_path[512];
     sanitize_path(host_path, file_path);
     
-    // Map PSP flags to standard POSIX open flags [Filesystem]
-    int posix_flags = O_RDONLY;
-    if (flags & 0x00000002) posix_flags = O_WRONLY | O_CREAT;
-    if (flags & 0x00000003) posix_flags = O_RDWR | O_CREAT;
+    // FIX: mapeamento de flags estava errado. PSP_O_RDONLY=0x0001 batia com
+    // a mascara '(flags & 0x3)' usada pra detectar RDWR, entao QUALQUER
+    // abertura somente-leitura tambem criava o arquivo vazio (O_CREAT
+    // aplicado sem necessidade) - e' isso que causava "read 0 bytes" em
+    // arquivos de save/config que deveriam ja existir com dados. No PSP de
+    // verdade o modo de acesso (bits 0-1: RDONLY=1/WRONLY=2/RDWR=3) e as
+    // flags extras (CREAT=0x200, TRUNC=0x400, APPEND=0x100) sao
+    // independentes - uma nao implica a outra.
+    int posix_flags;
+    int access_mode = flags & 0x3;
+    if (access_mode == 0x2) posix_flags = O_WRONLY;
+    else if (access_mode == 0x3) posix_flags = O_RDWR;
+    else posix_flags = O_RDONLY;
+    if (flags & 0x0200) posix_flags |= O_CREAT;  // PSP_O_CREAT
+    if (flags & 0x0400) posix_flags |= O_TRUNC;  // PSP_O_TRUNC
+    if (flags & 0x0100) posix_flags |= O_APPEND; // PSP_O_APPEND
     
     int fd = open(host_path, posix_flags, 0666);
     if (fd < 0) {
@@ -272,13 +284,68 @@ void mips_hle_syscall(MIPS_CPU *cpu, MIPS_HLE_Kernel *kernel) {
     
     switch (syscall_id) {
         // --- IoFileMgrForUser ---
-        case 0x11111: // Mock: sceIoOpen
-            return_val = hle_sceIoOpen(kernel, (const char *)mips_get_ptr(cpu, arg0), (int)arg1, (int)arg2);
+        case 0x11111: { // Mock: sceIoOpen
+            // NOVO: diagnostico do bug de "caminho com espacos" - antes de
+            // confiar no ponteiro, mostra o endereco bruto (arg0) e um dump
+            // hex+ASCII da memoria ali, pra ver se e' o PONTEIRO que esta
+            // errado (apontando pra um lugar aleatorio da RAM) ou se o
+            // CONTEUDO da memoria naquele endereco especifico realmente tem
+            // esses espacos (o que apontaria pro jogo/decompressor, nao pra
+            // leitura de argumento).
+            const char *path_check = (const char *)mips_get_ptr(cpu, arg0);
+            bool looks_wrong = false;
+            if (path_check) {
+                for (int k = 0; k < 8; k++) {
+                    if (path_check[k] == ' ') { looks_wrong = true; break; }
+                    if (path_check[k] == '\0') break;
+                }
+            }
+            if (looks_wrong) {
+                printf("[HLE IO DEBUG] sceIoOpen: arg0 (ponteiro do path) = 0x%08X. Dump da memoria nesse endereco:\n", arg0);
+                const uint8_t *raw = (const uint8_t *)path_check;
+                for (int row = 0; row < 4; row++) {
+                    printf("  +0x%02X:", row * 16);
+                    for (int col = 0; col < 16; col++) printf(" %02X", raw[row * 16 + col]);
+                    printf("  |");
+                    for (int col = 0; col < 16; col++) {
+                        uint8_t b = raw[row * 16 + col];
+                        putchar((b >= 32 && b < 127) ? (char)b : '.');
+                    }
+                    printf("|\n");
+                }
+                printf("[HLE IO DEBUG] Caller RA: 0x%08X\n", cpu->gpr[0x1F]);
+            }
+            return_val = hle_sceIoOpen(kernel, path_check, (int)arg1, (int)arg2);
             break;
-            
+        }
+
         case 0x11112: // Mock: sceIoRead
             return_val = hle_sceIoRead(kernel, (int)arg0, cpu, arg1, (int)arg2);
             break;
+
+        // NOVO: sceIoLseek - ja estava mapeada pelo linker (NID 0x27EB27B8)
+        // mas sem handler aqui, entao qualquer seek virava "Unknown Syscall".
+        // Assinatura real: sceIoLseek(int fd, SceOff offset, int whence) ->
+        // retorna a nova posicao (64-bit na PSP real, mas aqui simplificado
+        // pra 32-bit ja que os arquivos de jogo nao devem passar de 4GB).
+        // offset chega em $a1:$a2 (64-bit split em 2 registradores de 32,
+        // little-endian: $a1=parte baixa, $a2=parte alta) e whence em $a3.
+        case 0x11116: {
+            int fd = (int)arg0;
+            int64_t offset = (int64_t)((uint64_t)arg1 | ((uint64_t)arg2 << 32));
+            int whence = (int)arg3;
+            int slot = fd - 1;
+            if (slot < 0 || slot >= MAX_FILES || !kernel->files[slot].is_active) {
+                return_val = (uint32_t)-1;
+            } else {
+                int posix_whence = (whence == 1) ? SEEK_CUR : (whence == 2) ? SEEK_END : SEEK_SET;
+                off_t new_pos = lseek(kernel->files[slot].linux_fd, (off_t)offset, posix_whence);
+                return_val = (uint32_t)new_pos;
+                printf("[HLE IO] sceIoLseek(fd=%d, offset=%lld, whence=%d) -> nova posicao %ld\n",
+                       fd, (long long)offset, whence, (long)new_pos);
+            }
+            break;
+        }
             
         case 0x11113: // Mock: sceIoReadAsync
             return_val = hle_sceIoReadAsync(kernel, (int)arg0, cpu, arg1, (int)arg2);
@@ -328,6 +395,23 @@ void mips_hle_syscall(MIPS_CPU *cpu, MIPS_HLE_Kernel *kernel) {
 
         case 0x33332: // Mock: sceGeListSync
             return_val = 0; // Success
+            break;
+
+        // NOVO: sceGeEdramGetAddr - retorna o endereco base da EDRAM de
+        // video (onde framebuffers/texturas residem). Ja estava mapeada
+        // pelo linker (NID 0xE47E40E4) mas sem handler, caindo em "Unknown
+        // Syscall". Valor real do PSP e' fixo: 0x04000000.
+        case 0x33333:
+            return_val = 0x04000000;
+            break;
+
+        // NOVO: sceGeDrawSync - espera a GE terminar de desenhar a lista
+        // atual. Como a nossa GE roda de forma sincrona dentro do proprio
+        // sceGeListEnqueue (mips_ge_run_list ja processa a lista inteira
+        // na hora), aqui so precisa devolver sucesso - nao ha fila
+        // assincrona de verdade pra esperar.
+        case 0x33335:
+            return_val = 0; // PSP_OK
             break;
 
         // --- Audio OS Library (sceAudio) ---
@@ -382,13 +466,23 @@ void mips_hle_syscall(MIPS_CPU *cpu, MIPS_HLE_Kernel *kernel) {
             break;
     }
     
-    // Store returned result in $v0 [Allegrex Calling Convention]
+        // Store returned result in $v0 [Allegrex Calling Convention]
     cpu->gpr[2] = return_val;
     
-    // Increment PC past syscall
-    cpu->pc += 4;
-    cpu->next_pc = cpu->pc;
+    // FIX: o stub gravado por mips_linker.c e' so "syscall; nop" - nao tem
+    // nenhum 'jr $ra' de verdade em lugar nenhum. Avancar so +4 fazia o
+    // interpretador continuar executando o nop e depois cair direto no resto
+    // da tabela de stubs original (dados/NIDs, nao codigo) como se fosse
+    // instrucao valida, ate um jr/jalr com registrador sujo produzir um PC
+    // invalido (foi assim que "0x001D976E" apareceu logo apos o sceIoOpen).
+    // O retorno tem que ser pro chamador ($ra), igual TODO outro handler HLE
+    // do projeto ja faz (ver sceSysMem.c, sceKernelThread.c). Isso vale pra
+    // qualquer branch do switch acima, inclusive o 'default' de syscall
+    // desconhecida - nao ha motivo pra deixar essas continuarem pra frente.
+    cpu->pc = cpu->gpr[0x1F]; // $ra
+    cpu->next_pc = cpu->pc + 4;
 }
+
 
 // Global default weak implementation of link handler
 __attribute__((weak)) void hle_syscall(MIPS_CPU *cpu) {

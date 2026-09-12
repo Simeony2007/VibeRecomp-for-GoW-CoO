@@ -76,32 +76,31 @@ void mips_cpu_reset(MIPS_CPU *cpu);
  * Avoids complex translation tables. Uses fast range checks and direct pointer arithmetic.
  */
 static inline void* mips_get_ptr(MIPS_CPU *cpu, uint32_t addr) {
-    // Fold cached (0x08000000), uncached (0x48000000), and kernel (0x88000000) addresses
     uint32_t physical_addr = addr & 0x0FFFFFFF;
 
-    // Relocatable Load Bias Virtualization:
-    // If the binary tries to access virtual address spaces starting at 0x00000000,
-    // dynamically virtualize and shift them directly into the emulated user RAM base space (0x08800000).
-    if (physical_addr < 0x04000000) {
-        physical_addr += 0x08800000;
-    }
-
-    // RAM Range: 0x08000000 - 0x0BFFFFFF (64MB)
-    if (physical_addr >= 0x08000000 && physical_addr < 0x0C000000) {
-        return (void*)(cpu->ram + (physical_addr & PSP_RAM_MASK));
-    }
-    // VRAM Range: 0x04000000 - 0x041FFFFF (2MB)
-    if (physical_addr >= 0x04000000 && physical_addr < 0x04200000) {
-        return (void*)(cpu->vram + (physical_addr & PSP_VRAM_MASK));
-    }
-    // Scratchpad Range: 0x00010000 - 0x00013FFF (16KB)
+    // 1. Resolve o Scratchpad PRIMEIRO (Evita que o bias envie acessos para a RAM executável)
     if (physical_addr >= 0x00010000 && physical_addr < 0x00014000) {
         return (void*)(cpu->scratchpad + (physical_addr & PSP_SCRATCH_MASK));
     }
 
-    // Fallback/Invalid Address
+    // 2. Resolve a VRAM dedicada
+    if (physical_addr >= 0x04000000 && physical_addr < 0x04200000) {
+        return (void*)(cpu->vram + (physical_addr & PSP_VRAM_MASK));
+    }
+
+    // 3. Aplica o bias de relocação apenas se for endereço de usuário baixo legítimo
+    if (physical_addr < 0x04000000) {
+        physical_addr += 0x08800000;
+    }
+
+    // 4. Resolve a RAM física principal do PSP (64MB)
+    if (physical_addr >= 0x08000000 && physical_addr < 0x0C000000) {
+        return (void*)(cpu->ram + (physical_addr & PSP_RAM_MASK));
+    }
+
     return NULL;
 }
+
 
 // Inline read/write macros for absolute maximum compiler optimization
 static inline uint32_t mips_read32(MIPS_CPU *cpu, uint32_t addr) {
