@@ -7,6 +7,57 @@
 // Extern routing function to our HLE Kernel
 extern void hle_syscall(MIPS_CPU *cpu);
 
+static void trace_allegrex_special_candidate(const MIPS_CPU *cpu,
+                                              uint32_t pc, uint32_t inst,
+                                              uint32_t opcode, uint32_t rs,
+                                              uint32_t rt, uint32_t rd,
+                                              uint32_t shamt,
+                                              uint32_t funct) {
+    static int enabled = -1;
+    static uint32_t seen_pc[128];
+    static size_t seen_count;
+    static bool limit_reported;
+    if (enabled < 0) {
+        const char *setting = getenv("MIPS_TRACE_ALLEGREX_SPECIAL");
+        enabled = setting != NULL && strcmp(setting, "1") == 0;
+    }
+    if (!enabled || opcode != 0) return;
+
+    const char *name = NULL;
+    switch (funct) {
+        case 0x02: if (rs == 1) name = "ROTR"; break;
+        case 0x06: if (shamt == 1) name = "ROTRV"; break;
+        case 0x16: name = "CLZ"; break;
+        case 0x17: name = "CLO"; break;
+        case 0x1C: name = "MADD"; break;
+        case 0x1D: name = "MADDU"; break;
+        case 0x2C: name = "MAX"; break;
+        case 0x2D: name = "MIN"; break;
+        case 0x2E: name = "MSUB"; break;
+        case 0x2F: name = "MSUBU"; break;
+        default: break;
+    }
+    if (name == NULL) return;
+    for (size_t i = 0; i < seen_count; i++) {
+        if (seen_pc[i] == pc) return;
+    }
+    if (seen_count >= sizeof(seen_pc) / sizeof(seen_pc[0])) {
+        if (!limit_reported) {
+            fprintf(stderr,
+                    "[ALLEGREX SPECIAL] unique-PC trace limit reached (%zu)\n",
+                    seen_count);
+            limit_reported = true;
+        }
+        return;
+    }
+    seen_pc[seen_count++] = pc;
+    fprintf(stderr,
+            "[ALLEGREX SPECIAL] pc=%08X inst=%08X op=%s rs=%u(%08X) "
+            "rt=%u(%08X) rd=%u sa=%u hi=%08X lo=%08X\n",
+            pc, inst, name, rs, cpu->gpr[rs], rt, cpu->gpr[rt], rd, shamt,
+            cpu->hi, cpu->lo);
+}
+
 static void vfpu_get_vector_regs(uint8_t regs[4], uint32_t size, uint32_t vector_reg) {
     uint32_t matrix = (vector_reg >> 2) & 7;
     uint32_t column = vector_reg & 3;
@@ -137,6 +188,175 @@ static void vfpu_eat_prefixes(MIPS_CPU *cpu) {
     cpu->vcr[0] = 0xE4;
     cpu->vcr[1] = 0xE4;
     cpu->vcr[2] = 0;
+}
+
+static void vfpu_retain_invalid_swizzle(const MIPS_CPU *cpu,
+                                       float values[4], uint32_t size) {
+    for (uint32_t i = 0; i < size; i++) {
+        uint32_t selector_s = (cpu->vcr[0] >> (i * 2)) & 3;
+        uint32_t selector_t = (cpu->vcr[1] >> (i * 2)) & 3;
+        bool constant_s = ((cpu->vcr[0] >> (12 + i)) & 1) != 0;
+        bool constant_t = ((cpu->vcr[1] >> (12 + i)) & 1) != 0;
+        if ((selector_s >= size && !constant_s) ||
+            (selector_t >= size && !constant_t)) {
+            values[i] = 0.0f;
+        }
+    }
+}
+
+static void vfpu_execute_vfpu3(MIPS_CPU *cpu, uint32_t pc,
+                               uint32_t inst) {
+    uint32_t subop = (inst >> 23) & 7;
+    uint32_t vd = inst & 0x7F;
+    uint32_t vs = (inst >> 8) & 0x7F;
+    uint32_t vt = (inst >> 16) & 0x7F;
+    uint32_t size = 1u + ((inst >> 7) & 1u) +
+                    (((inst >> 15) & 1u) << 1);
+    uint8_t dst_regs[4], src_regs[4], target_regs[4];
+    float source[4] = {0};
+    float target[4] = {0};
+    float result[4] = {0};
+
+    if (subop == 0) {
+        uint32_t condition = inst & 0xF;
+        uint32_t lane_cc = 0;
+        uint32_t any_cc = 0;
+        uint32_t all_cc = 1;
+        uint32_t affected = (1u << 4) | (1u << 5);
+
+        vfpu_get_vector_regs(src_regs, size, vs);
+        vfpu_get_vector_regs(target_regs, size, vt);
+        for (uint32_t i = 0; i < size; i++) {
+            source[i] = cpu->vfpu[src_regs[i]];
+            target[i] = cpu->vfpu[target_regs[i]];
+        }
+        vfpu_apply_prefix_st(source, cpu->vcr[0], size);
+        vfpu_apply_prefix_st(target, cpu->vcr[1], size);
+        for (uint32_t i = 0; i < size; i++) {
+            bool value;
+            switch (condition) {
+                case 0: value = false; break;
+                case 1: value = source[i] == target[i]; break;
+                case 2: value = source[i] < target[i]; break;
+                case 3: value = source[i] <= target[i]; break;
+                case 4: value = true; break;
+                case 5: value = source[i] != target[i]; break;
+                case 6: value = source[i] >= target[i]; break;
+                case 7: value = source[i] > target[i]; break;
+                case 8: value = source[i] == 0.0f; break;
+                case 9: value = isnan(source[i]); break;
+                case 10: value = isinf(source[i]); break;
+                case 11: value = isnan(source[i]) || isinf(source[i]); break;
+                case 12: value = source[i] != 0.0f; break;
+                case 13: value = !isnan(source[i]); break;
+                case 14: value = !isinf(source[i]); break;
+                default: value = !isnan(source[i]) && !isinf(source[i]); break;
+            }
+            if (value) lane_cc |= 1u << i;
+            any_cc |= value ? 1u : 0u;
+            all_cc &= value ? 1u : 0u;
+            affected |= 1u << i;
+        }
+        cpu->vcr[3] = (cpu->vcr[3] & ~affected) |
+                      ((lane_cc | (any_cc << 4) | (all_cc << 5)) & affected);
+        vfpu_eat_prefixes(cpu);
+        return;
+    }
+
+    if (subop != 2 && subop != 3 && subop != 5 &&
+        subop != 6 && subop != 7) {
+        fprintf(stderr,
+                "[Interpreter Warning] Unsupported VFPU3 subop %u "
+                "at PC 0x%08X (Inst: 0x%08X)\n",
+                subop, pc, inst);
+        return;
+    }
+
+    vfpu_get_vector_regs(dst_regs, size, vd);
+    vfpu_get_vector_regs(src_regs, size, vs);
+    vfpu_get_vector_regs(target_regs, size, vt);
+    for (uint32_t i = 0; i < size; i++) {
+        source[i] = cpu->vfpu[src_regs[i]];
+        target[i] = cpu->vfpu[target_regs[i]];
+    }
+    vfpu_apply_prefix_st(source, cpu->vcr[0], size);
+    vfpu_apply_prefix_st(target, cpu->vcr[1], size);
+
+    for (uint32_t i = 0; i < size; i++) {
+        switch (subop) {
+            case 2:
+            case 3: {
+                uint32_t source_bits = vfpu_float_bits(source[i]);
+                uint32_t target_bits = vfpu_float_bits(target[i]);
+                if (isnan(source[i]) || isinf(source[i]) ||
+                    isnan(target[i]) || isinf(target[i])) {
+                    int32_t source_order = (int32_t)source_bits;
+                    int32_t target_order = (int32_t)target_bits;
+                    bool both_negative =
+                        (source_bits & 0x80000000u) != 0 &&
+                        (target_bits & 0x80000000u) != 0;
+                    bool choose_source;
+                    if (subop == 2) {
+                        choose_source = both_negative
+                            ? source_order > target_order
+                            : source_order < target_order;
+                    } else {
+                        choose_source = both_negative
+                            ? source_order < target_order
+                            : source_order > target_order;
+                    }
+                    uint32_t selected = choose_source
+                        ? source_bits : target_bits;
+                    memcpy(&result[i], &selected, sizeof(selected));
+                } else if (subop == 2) {
+                    result[i] = source[i] < target[i]
+                        ? source[i] : target[i];
+                } else {
+                    result[i] = target[i] < source[i]
+                        ? source[i] : target[i];
+                }
+                break;
+            }
+            case 5: {
+                float difference = source[i] - target[i];
+                if (isnan(difference)) {
+                    uint32_t source_bits = vfpu_float_bits(source[i]);
+                    uint32_t target_bits = vfpu_float_bits(target[i]);
+                    int64_t source_magnitude = source_bits & 0x7FFFFFFFu;
+                    int64_t target_magnitude = target_bits & 0x7FFFFFFFu;
+                    int64_t ordered_source =
+                        (source_bits & 0x80000000u) != 0
+                        ? -source_magnitude : source_magnitude;
+                    int64_t ordered_target =
+                        (target_bits & 0x80000000u) != 0
+                        ? -target_magnitude : target_magnitude;
+                    result[i] = (float)((ordered_source > ordered_target) -
+                                        (ordered_source < ordered_target));
+                } else {
+                    result[i] = (float)((difference > 0.0f) -
+                                        (difference < 0.0f));
+                }
+                break;
+            }
+            case 6:
+                result[i] = isnan(source[i]) || isnan(target[i])
+                    ? 0.0f : (source[i] >= target[i] ? 1.0f : 0.0f);
+                break;
+            case 7:
+                result[i] = isnan(source[i]) || isnan(target[i])
+                    ? 0.0f : (source[i] < target[i] ? 1.0f : 0.0f);
+                break;
+        }
+    }
+
+    vfpu_retain_invalid_swizzle(cpu, result, size);
+    vfpu_apply_prefix_d(result, size, cpu->vcr[2]);
+    for (uint32_t i = 0; i < size; i++) {
+        if ((cpu->vcr[2] & (1u << (8 + i))) == 0) {
+            cpu->vfpu[dst_regs[i]] = result[i];
+        }
+    }
+    vfpu_eat_prefixes(cpu);
 }
 
 static uint32_t mips_float_bits(float value) {
@@ -433,6 +653,8 @@ void mips_interpreter_step(MIPS_CPU *cpu) {
     uint32_t rd = (inst >> 11) & 0x1F;
     uint32_t shamt = (inst >> 6) & 0x1F;
     uint32_t funct = inst & 0x3F;
+    trace_allegrex_special_candidate(cpu, pc, inst, opcode, rs, rt, rd,
+                                     shamt, funct);
 
     int16_t simm = (int16_t)(inst & 0xFFFF);
     uint16_t imm = inst & 0xFFFF;
@@ -471,7 +693,13 @@ void mips_interpreter_step(MIPS_CPU *cpu) {
                     if (rd != 0) cpu->gpr[rd] = cpu->gpr[rt] << shamt;
                     break;
                 case 0x02: // SRL
-                    if (rd != 0) cpu->gpr[rd] = cpu->gpr[rt] >> shamt;
+                    if (rd != 0) {
+                        uint32_t value = cpu->gpr[rt];
+                        cpu->gpr[rd] = rs == 1
+                            ? (value >> shamt) |
+                              (value << ((32u - shamt) & 31u))
+                            : value >> shamt;
+                    }
                     break;
                 case 0x03: // SRA
                     if (rd != 0) cpu->gpr[rd] = (int32_t)cpu->gpr[rt] >> shamt;
@@ -480,7 +708,14 @@ void mips_interpreter_step(MIPS_CPU *cpu) {
                     if (rd != 0) cpu->gpr[rd] = cpu->gpr[rt] << (cpu->gpr[rs] & 0x1F);
                     break;
                 case 0x06: // SRLV
-                    if (rd != 0) cpu->gpr[rd] = cpu->gpr[rt] >> (cpu->gpr[rs] & 0x1F);
+                    if (rd != 0) {
+                        uint32_t shift = cpu->gpr[rs] & 0x1F;
+                        uint32_t value = cpu->gpr[rt];
+                        cpu->gpr[rd] = shamt == 1
+                            ? (value >> shift) |
+                              (value << ((32u - shift) & 31u))
+                            : value >> shift;
+                    }
                     break;
                 case 0x07: // SRAV
                     if (rd != 0) cpu->gpr[rd] = (int32_t)cpu->gpr[rt] >> (cpu->gpr[rs] & 0x1F);
@@ -566,14 +801,36 @@ void mips_interpreter_step(MIPS_CPU *cpu) {
                     }
                     break;
                 }
-                case 0x16: // DSRLV (32-bit-compatible Allegrex fallback)
-                    if (rd != 0) cpu->gpr[rd] = cpu->gpr[rt] >> (cpu->gpr[rs] & 0x1F);
+                case 0x16: // CLZ
+                    if (rd != 0) {
+                        uint32_t value = cpu->gpr[rs];
+                        cpu->gpr[rd] = value != 0 ? (uint32_t)__builtin_clz(value)
+                                                   : 32u;
+                    }
                     break;
-                case 0x1C: { // DMULT (low 32 bits are sufficient to continue)
-                    int64_t res = (int64_t)(int32_t)cpu->gpr[rs] *
-                                  (int64_t)(int32_t)cpu->gpr[rt];
-                    cpu->lo = (uint32_t)res;
-                    cpu->hi = (uint32_t)(res >> 32);
+                case 0x17: // CLO
+                    if (rd != 0) {
+                        uint32_t value = ~cpu->gpr[rs];
+                        cpu->gpr[rd] = value != 0 ? (uint32_t)__builtin_clz(value)
+                                                   : 32u;
+                    }
+                    break;
+                case 0x1C: { // MADD
+                    uint64_t accumulator = ((uint64_t)cpu->hi << 32) | cpu->lo;
+                    int64_t product = (int64_t)(int32_t)cpu->gpr[rs] *
+                                      (int64_t)(int32_t)cpu->gpr[rt];
+                    uint64_t result = accumulator + (uint64_t)product;
+                    cpu->lo = (uint32_t)result;
+                    cpu->hi = (uint32_t)(result >> 32);
+                    break;
+                }
+                case 0x1D: { // MADDU
+                    uint64_t accumulator = ((uint64_t)cpu->hi << 32) | cpu->lo;
+                    uint64_t product = (uint64_t)cpu->gpr[rs] *
+                                       cpu->gpr[rt];
+                    uint64_t result = accumulator + product;
+                    cpu->lo = (uint32_t)result;
+                    cpu->hi = (uint32_t)(result >> 32);
                     break;
                 }
                 case 0x20: // ADD
@@ -584,22 +841,38 @@ void mips_interpreter_step(MIPS_CPU *cpu) {
                 case 0x23: // SUBU
                     if (rd != 0) cpu->gpr[rd] = cpu->gpr[rs] - cpu->gpr[rt];
                     break;
-                // NOVO: DADD/DADDU/DSUB/DSUBU (funct 0x2C-0x2F) - variantes de
-                // 64 bits do MIPS III. A Allegrex (PSP) nao tem datapath de
-                // 64 bits de verdade, entao tratamos igual ao ADD/ADDU/SUB/SUBU
-                // de 32 bits - mesma abordagem usada por outros interpretadores
-                // PSP pra manter compatibilidade com codigo que usa esses opcodes
-                // (visto em loops de descompressao/checksum, ex: leitura de
-                // arquivos .csz). Antes eram silenciosamente ignorados, o que
-                // travava contadores/ponteiros de loop em vez de avancarem.
-                case 0x2C: // DADD
-                case 0x2D: // DADDU
-                    if (rd != 0) cpu->gpr[rd] = cpu->gpr[rs] + cpu->gpr[rt];
+                case 0x2C: // MAX (signed)
+                    if (rd != 0) {
+                        cpu->gpr[rd] = (int32_t)cpu->gpr[rs] >
+                                (int32_t)cpu->gpr[rt]
+                            ? cpu->gpr[rs] : cpu->gpr[rt];
+                    }
                     break;
-                case 0x2E: // DSUB
-                case 0x2F: // DSUBU
-                    if (rd != 0) cpu->gpr[rd] = cpu->gpr[rs] - cpu->gpr[rt];
+                case 0x2D: // MIN (signed)
+                    if (rd != 0) {
+                        cpu->gpr[rd] = (int32_t)cpu->gpr[rs] <
+                                (int32_t)cpu->gpr[rt]
+                            ? cpu->gpr[rs] : cpu->gpr[rt];
+                    }
                     break;
+                case 0x2E: { // MSUB
+                    uint64_t accumulator = ((uint64_t)cpu->hi << 32) | cpu->lo;
+                    int64_t product = (int64_t)(int32_t)cpu->gpr[rs] *
+                                      (int64_t)(int32_t)cpu->gpr[rt];
+                    uint64_t result = accumulator - (uint64_t)product;
+                    cpu->lo = (uint32_t)result;
+                    cpu->hi = (uint32_t)(result >> 32);
+                    break;
+                }
+                case 0x2F: { // MSUBU
+                    uint64_t accumulator = ((uint64_t)cpu->hi << 32) | cpu->lo;
+                    uint64_t product = (uint64_t)cpu->gpr[rs] *
+                                       cpu->gpr[rt];
+                    uint64_t result = accumulator - product;
+                    cpu->lo = (uint32_t)result;
+                    cpu->hi = (uint32_t)(result >> 32);
+                    break;
+                }
                 case 0x24: // AND
                     if (rd != 0) cpu->gpr[rd] = cpu->gpr[rs] & cpu->gpr[rt];
                     break;
@@ -751,13 +1024,15 @@ void mips_interpreter_step(MIPS_CPU *cpu) {
         case 0x2B: // SW
             mips_write32(cpu, cpu->gpr[rs] + simm, cpu->gpr[rt]);
             break;
-                case 0x22: { // LWL (Load Word Left)
+        case 0x22: { // LWL (Load Word Left)
             uint32_t addr = cpu->gpr[rs] + simm;
             uint32_t aligned_addr = addr & ~3u;
             uint32_t word = mips_read32(cpu, aligned_addr);
             int shift = (addr & 3) * 8;
-            // Formula padrao MIPS (big-endian vs little-endian ja tratada por addr&3):
-            if (rt != 0) cpu->gpr[rt] = (cpu->gpr[rt] & ~(0xFFFFFFFFu << shift)) | (word << shift);
+            if (rt != 0) {
+                cpu->gpr[rt] = (cpu->gpr[rt] & (0x00FFFFFFu >> shift)) |
+                               (word << (24 - shift));
+            }
             break;
         }
         case 0x26: { // LWR (Load Word Right)
@@ -765,31 +1040,32 @@ void mips_interpreter_step(MIPS_CPU *cpu) {
             uint32_t aligned_addr = addr & ~3u;
             uint32_t word = mips_read32(cpu, aligned_addr);
             int shift = (addr & 3) * 8;
-            if (rt != 0) cpu->gpr[rt] = (cpu->gpr[rt] & ~(0xFFFFFFFFu >> (24 - shift))) | (word >> (24 - shift));
+            if (rt != 0) {
+                cpu->gpr[rt] = (cpu->gpr[rt] &
+                                (0xFFFFFF00u << (24 - shift))) |
+                               (word >> shift);
+            }
             break;
         }
-        case 0x2A: { // SWL (Store Word Left) - complemento exato do LWL acima.
-            // Deduzido como o inverso matematico exato do LWL ja existente
-            // (nao copiei uma formula generica de outro emulador de proposito -
-            // assim garanto que SWL seguido de LWL no mesmo endereco devolve
-            // exatamente os bits que foram gravados, consistente com a
-            // convencao que este interpretador ja usa).
-            uint32_t addr = cpu->gpr[rs] + simm;
-            uint32_t aligned_addr = addr & ~3u;
-            uint32_t mem = mips_read32(cpu, aligned_addr);
-            int shift = (addr & 3) * 8; // 0, 8, 16 ou 24 - nunca 32, sem UB nos shifts abaixo
-            uint32_t keep_mask = ~(0xFFFFFFFFu >> shift);
-            uint32_t new_mem = (mem & keep_mask) | (cpu->gpr[rt] >> shift);
-            mips_write32(cpu, aligned_addr, new_mem);
-            break;
-        }
-        case 0x2E: { // SWR (Store Word Right) - complemento exato do LWR acima.
+        case 0x2A: { // SWL (Store Word Left)
             uint32_t addr = cpu->gpr[rs] + simm;
             uint32_t aligned_addr = addr & ~3u;
             uint32_t mem = mips_read32(cpu, aligned_addr);
             int shift = (addr & 3) * 8;
-            uint32_t preserve_mask = ~(0xFFFFFFFFu << (24 - shift));
-            uint32_t new_mem = (mem & preserve_mask) | (cpu->gpr[rt] << (24 - shift));
+            uint32_t new_mem =
+                (cpu->gpr[rt] >> (24 - shift)) |
+                (mem & (0xFFFFFF00u << shift));
+            mips_write32(cpu, aligned_addr, new_mem);
+            break;
+        }
+        case 0x2E: { // SWR (Store Word Right)
+            uint32_t addr = cpu->gpr[rs] + simm;
+            uint32_t aligned_addr = addr & ~3u;
+            uint32_t mem = mips_read32(cpu, aligned_addr);
+            int shift = (addr & 3) * 8;
+            uint32_t new_mem =
+                (cpu->gpr[rt] << shift) |
+                (mem & (0x00FFFFFFu >> (24 - shift)));
             mips_write32(cpu, aligned_addr, new_mem);
             break;
         }
@@ -1414,6 +1690,9 @@ void mips_interpreter_step(MIPS_CPU *cpu) {
             }
             break;
         }
+        case 0x1B: // VFPU3: vcmp, vmin, vmax, vscmp, vsge, vslt
+            vfpu_execute_vfpu3(cpu, pc, inst);
+            break;
         case 0x3E: { // SV.Q Allegrex official Vector Store
             uint32_t vt = ((inst >> 16) & 0x1Fu) | ((inst & 1u) << 5);
             uint32_t addr = cpu->gpr[rs] +
@@ -1638,7 +1917,8 @@ void mips_interpreter_step(MIPS_CPU *cpu) {
             break;
         }
         default:
-            printf("[Interpreter Warning] Unsupported opcode 0x%02X at PC 0x%08X\n", opcode, pc);
+            printf("[Interpreter Warning] Unsupported opcode 0x%02X at PC "
+                   "0x%08X (Inst: 0x%08X)\n", opcode, pc, inst);
             break;
     }
 

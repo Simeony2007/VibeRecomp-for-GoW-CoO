@@ -323,11 +323,89 @@ void mips_video_free(MIPS_VideoSystem *vid) {
     printf("[Video GLES] Renderer shutdown complete.\n");
 }
 
+static void dump_display_framebuffer(MIPS_CPU *cpu, uint32_t topaddr,
+                                     uint32_t stride, uint32_t format,
+                                     uint32_t width, uint32_t height) {
+    static int initialized;
+    static char prefix[512];
+    static uint32_t dump_count;
+    enum { MAX_DISPLAY_DUMPS = 20 };
+
+    if (!initialized) {
+        initialized = 1;
+        const char *setting = getenv("MIPS_DISPLAY_DUMP_PREFIX");
+        if (setting != NULL && setting[0] != '\0') {
+            int length = snprintf(prefix, sizeof(prefix), "%s", setting);
+            if (length < 0 || (size_t)length >= sizeof(prefix)) {
+                prefix[0] = '\0';
+                fprintf(stderr,
+                        "[Display Dump Error] MIPS_DISPLAY_DUMP_PREFIX is "
+                        "too long.\n");
+            }
+        }
+    }
+    if (prefix[0] == '\0' || dump_count >= MAX_DISPLAY_DUMPS) return;
+    uint32_t dump_number = ++dump_count;
+    if (cpu == NULL || width == 0 || height == 0 || stride < width ||
+        format > 3) {
+        fprintf(stderr,
+                "[Display Dump Error] Invalid framebuffer metadata "
+                "(addr=%08X stride=%u format=%u size=%ux%u).\n",
+                topaddr, stride, format, width, height);
+        return;
+    }
+    size_t bytes_per_pixel = format == 3 ? 4 : 2;
+    if ((size_t)stride > SIZE_MAX / bytes_per_pixel) {
+        fprintf(stderr, "[Display Dump Error] Framebuffer row size overflow.\n");
+        return;
+    }
+    size_t row_bytes = (size_t)stride * bytes_per_pixel;
+    if ((size_t)height > SIZE_MAX / row_bytes) {
+        fprintf(stderr, "[Display Dump Error] Framebuffer size overflow.\n");
+        return;
+    }
+    size_t size = row_bytes * height;
+    const uint8_t *source =
+        (const uint8_t *)mips_get_ptr_range(cpu, topaddr, size);
+    if (source == NULL) {
+        fprintf(stderr,
+                "[Display Dump Error] Guest framebuffer range is invalid "
+                "(addr=%08X size=%zu).\n",
+                topaddr, size);
+        return;
+    }
+
+    char path[640];
+    int length = snprintf(path, sizeof(path),
+                          "%s_display%02u_%08X_f%u.bin",
+                          prefix, dump_number, topaddr, format);
+    if (length < 0 || (size_t)length >= sizeof(path)) {
+        fprintf(stderr, "[Display Dump Error] Output path is too long.\n");
+        return;
+    }
+    FILE *file = fopen(path, "wb");
+    if (file == NULL) {
+        fprintf(stderr, "[Display Dump Error] Cannot open '%s'.\n", path);
+        return;
+    }
+    size_t written = fwrite(source, 1, size, file);
+    int close_result = fclose(file);
+    if (written != size || close_result != 0) {
+        fprintf(stderr, "[Display Dump Error] Failed writing '%s'.\n", path);
+        return;
+    }
+    fprintf(stderr,
+            "[Display Dump] #%u addr=%08X stride=%u format=%u size=%ux%u "
+            "bytes=%zu file=%s\n",
+            dump_number, topaddr, stride, format, width, height, size, path);
+}
+
 void mips_video_set_framebuffer(MIPS_VideoSystem *vid, MIPS_CPU *cpu,
                                 uint32_t topaddr, uint32_t stride,
                                 uint32_t format, uint32_t width,
                                 uint32_t height) {
     if (vid == NULL || !vid->initialized) return;
+    dump_display_framebuffer(cpu, topaddr, stride, format, width, height);
     vid->display_cpu = cpu;
     vid->display_topaddr = topaddr;
     vid->display_stride = stride;
@@ -338,7 +416,9 @@ void mips_video_set_framebuffer(MIPS_VideoSystem *vid, MIPS_CPU *cpu,
 
 void mips_video_begin_frame(MIPS_VideoSystem *vid) {
     if (vid == NULL || !vid->initialized) return;
+    if (vid->frame_started) return;
 
+    vid->frame_started = true;
     glViewport(0, 0, 960, 544);
     if (vid->debug_ge_only) {
         glClearColor(0.30f, 0.30f, 0.30f, 1.0f);
@@ -441,8 +521,416 @@ static float ge_float24(uint32_t value) {
     return result;
 }
 
+static uint32_t ge_encode_float24(float value) {
+    uint32_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    return bits >> 8;
+}
+
+static int ge_dump_write(const char *path, const void *data, size_t size) {
+    FILE *file = fopen(path, "wb");
+    if (file == NULL) {
+        fprintf(stderr, "[GE Dump Error] Cannot open '%s' for writing.\n",
+                path);
+        return 0;
+    }
+    size_t written = fwrite(data, 1, size, file);
+    int close_result = fclose(file);
+    if (written != size || close_result != 0) {
+        fprintf(stderr,
+                "[GE Dump Error] Incomplete write to '%s' (%zu/%zu bytes).\n",
+                path, written, size);
+        return 0;
+    }
+    return 1;
+}
+
+static uint32_t ge_dump_hash(const uint8_t *data, size_t size) {
+    uint32_t hash = 2166136261u;
+    for (size_t i = 0; i < size; i++) {
+        hash ^= data[i];
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+static void ge_dump_texture_data(const char *prefix, uint32_t draw_number,
+                                 const MIPS_GraphicsEngine *ge,
+                                 const uint8_t *source, size_t source_size,
+                                 uint32_t width, uint32_t height,
+                                 uint32_t format, uint32_t clut_format,
+                                 uint32_t clut_entry_bytes,
+                                 const uint8_t *indices,
+                                 const uint8_t *rgba) {
+    char path[512];
+    char header[64];
+    int ok = 1;
+    uint32_t nonzero_indices = 0;
+    uint32_t nonblack_rgba = 0;
+    uint32_t unique_indices = 0;
+    bool seen_indices[256] = {false};
+    size_t pixel_count = (size_t)width * height;
+
+    for (size_t i = 0; i < pixel_count; i++) {
+        if (indices != NULL) {
+            uint8_t index = indices[i];
+            if (index != 0) nonzero_indices++;
+            if (!seen_indices[index]) {
+                seen_indices[index] = true;
+                unique_indices++;
+            }
+        }
+        const uint8_t *pixel = rgba + i * 4;
+        if (pixel[0] != 0 || pixel[1] != 0 || pixel[2] != 0 || pixel[3] != 0) {
+            nonblack_rgba++;
+        }
+    }
+
+    snprintf(path, sizeof(path), "%s_draw%u_texture.bin", prefix, draw_number);
+    ok &= ge_dump_write(path, source, source_size);
+
+    if (indices != NULL) {
+        int header_size = snprintf(header, sizeof(header), "P5\n%u %u\n255\n",
+                                   width, height);
+        snprintf(path, sizeof(path), "%s_draw%u_indices.pgm", prefix,
+                 draw_number);
+        ok &= header_size > 0 &&
+              ge_dump_write(path, header, (size_t)header_size);
+        if (ok) {
+            FILE *file = fopen(path, "ab");
+            if (file == NULL) {
+                fprintf(stderr,
+                        "[GE Dump Error] Cannot append pixel data to '%s'.\n",
+                        path);
+                ok = 0;
+            } else {
+                size_t written = fwrite(indices, 1, pixel_count, file);
+                int close_result = fclose(file);
+                if (written != pixel_count || close_result != 0) {
+                    fprintf(stderr,
+                            "[GE Dump Error] Incomplete index image '%s'.\n",
+                            path);
+                    ok = 0;
+                }
+            }
+        }
+    }
+
+    int header_size = snprintf(header, sizeof(header), "P6\n%u %u\n255\n",
+                               width, height);
+    snprintf(path, sizeof(path), "%s_draw%u_resolved.ppm", prefix,
+             draw_number);
+    if (header_size <= 0 || !ge_dump_write(path, header, (size_t)header_size)) {
+        ok = 0;
+    } else {
+        FILE *file = fopen(path, "ab");
+        if (file == NULL) {
+            fprintf(stderr,
+                    "[GE Dump Error] Cannot append RGB data to '%s'.\n", path);
+            ok = 0;
+        } else {
+            uint8_t rgb[3];
+            for (size_t i = 0; i < pixel_count; i++) {
+                rgb[0] = rgba[i * 4];
+                rgb[1] = rgba[i * 4 + 1];
+                rgb[2] = rgba[i * 4 + 2];
+                if (fwrite(rgb, 1, sizeof(rgb), file) != sizeof(rgb)) {
+                    fprintf(stderr,
+                            "[GE Dump Error] Incomplete RGB image '%s'.\n",
+                            path);
+                    ok = 0;
+                    break;
+                }
+            }
+            if (fclose(file) != 0) ok = 0;
+        }
+    }
+
+    snprintf(path, sizeof(path), "%s_draw%u_resolved.rgba", prefix,
+             draw_number);
+    ok &= ge_dump_write(path, rgba, pixel_count * 4);
+
+    if (format >= 4 && ge->clut_loaded) {
+        uint32_t entries = ge->clut_loaded_bytes / clut_entry_bytes;
+        uint32_t cols = entries < 16 ? entries : 16;
+        uint32_t rows = cols != 0 ? (entries + cols - 1) / cols : 0;
+        if (cols != 0 && rows != 0) {
+            size_t palette_pixels = (size_t)cols * rows;
+            uint8_t *palette_rgb = (uint8_t *)calloc(palette_pixels, 3);
+            if (palette_rgb == NULL) {
+                fprintf(stderr, "[GE Dump Error] Palette allocation failed.\n");
+                ok = 0;
+            } else {
+                for (uint32_t i = 0; i < entries; i++) {
+                    uint8_t decoded[4];
+                    if (!mips_video_decode_display_pixel(
+                            ge->clut + (size_t)i * clut_entry_bytes,
+                            clut_format, decoded)) {
+                        fprintf(stderr,
+                                "[GE Dump Error] Failed decoding CLUT entry %u.\n",
+                                i);
+                        ok = 0;
+                        break;
+                    }
+                    palette_rgb[(size_t)i * 3] = decoded[0];
+                    palette_rgb[(size_t)i * 3 + 1] = decoded[1];
+                    palette_rgb[(size_t)i * 3 + 2] = decoded[2];
+                }
+                snprintf(path, sizeof(path), "%s_draw%u_palette.ppm", prefix,
+                         draw_number);
+                header_size = snprintf(header, sizeof(header),
+                                       "P6\n%u %u\n255\n", cols, rows);
+                if (header_size <= 0 ||
+                    !ge_dump_write(path, header, (size_t)header_size)) {
+                    ok = 0;
+                } else {
+                    FILE *file = fopen(path, "ab");
+                    if (file == NULL) {
+                        fprintf(stderr,
+                                "[GE Dump Error] Cannot append palette to '%s'.\n",
+                                path);
+                        ok = 0;
+                    } else {
+                        size_t bytes = palette_pixels * 3;
+                        size_t written = fwrite(palette_rgb, 1, bytes, file);
+                        int close_result = fclose(file);
+                        if (written != bytes || close_result != 0) {
+                            fprintf(stderr,
+                                    "[GE Dump Error] Incomplete palette '%s'.\n",
+                                    path);
+                            ok = 0;
+                        }
+                    }
+                }
+                snprintf(path, sizeof(path), "%s_draw%u_palette.bin", prefix,
+                         draw_number);
+                ok &= ge_dump_write(path, ge->clut, ge->clut_loaded_bytes);
+                free(palette_rgb);
+            }
+        }
+    }
+
+    fprintf(stderr,
+            "[GE Dump] draw=%u texture=%ux%u format=%u source_bytes=%zu "
+            "source_fnv1a=%08X indices_unique=%u indices_nonzero=%u "
+            "indices_fnv1a=%08X palette_fnv1a=%08X "
+            "rgba_nonzero=%u rgba_fnv1a=%08X result=%s\n",
+            draw_number, width, height, format, source_size,
+            ge_dump_hash(source, source_size), unique_indices, nonzero_indices,
+            indices != NULL ? ge_dump_hash(indices, pixel_count) : 0,
+            ge->clut_loaded
+                ? ge_dump_hash(ge->clut, ge->clut_loaded_bytes) : 0,
+            nonblack_rgba, ge_dump_hash(rgba, pixel_count * 4),
+            ok ? "ok" : "failed");
+}
+
+static void ge_dump_draw_state(const char *prefix, uint32_t draw_number,
+                               MIPS_VideoSystem *vid, MIPS_CPU *cpu,
+                               const MIPS_GraphicsEngine *ge,
+                               int prim_type, int vertex_count,
+                               const GE_VertexLayout *layout,
+                               const float raw_positions[4][3],
+                               const float clip_positions[4][4],
+                               const GLES_Vertex *vertices) {
+    char path[512];
+    snprintf(path, sizeof(path), "%s_draw%u_state.txt", prefix, draw_number);
+    FILE *file = fopen(path, "wb");
+    if (file == NULL) {
+        fprintf(stderr, "[GE Dump Error] Cannot open '%s' for writing.\n",
+                path);
+        return;
+    }
+
+    uint32_t clut_address =
+        (ge->regs[CMD_CLUTADDR] & 0x00FFFFF0u) |
+        ((ge->regs[CMD_CLUTADDRUPPER] << 8) & 0x0F000000u);
+    fprintf(file,
+            "draw=%u pc=%08X primitive=%d vertex_count=%d\n"
+            "vtype=%06X through=%u stride=%d offsets(weight=%d tex=%d "
+            "color=%d normal=%d position=%d)\n"
+            "vaddr=%08X iaddr=%08X base=%08X offset=%08X origin=%08X\n"
+            "texture_enable=%06X tformat=%u tmode=%06X tbp0=%06X "
+            "tbw0=%06X tsize0=%06X clut_format=%06X clut_addr=%08X "
+            "clut_upper=%06X cload=%06X clut_loaded=%u clut_bytes=%u\n"
+            "texfunc=%06X texenv=%06X texscale=(%06X,%06X) "
+            "texoffset=(%06X,%06X)\n"
+            "fbp=%06X fbw=%06X zbp=%06X zbw=%06X psm=%06X clear=%06X\n"
+            "display=(topaddr=%08X stride=%u format=%u size=%ux%u)\n"
+            "enable=(blend=%06X alpha=%06X stencil=%06X color=%06X "
+            "logicop=%06X) "
+            "tests=(colorref=%06X colormask=%06X alpha=%06X "
+            "stencil=%06X stencilop=%06X blendmode=%06X "
+            "fixed=(%06X,%06X)) "
+            "scissor=(%06X,%06X) region=(%06X,%06X)\n",
+            draw_number, ge->pc >= 4 ? ge->pc - 4 : 0, prim_type & 7,
+            vertex_count, ge->regs[0x12],
+            ge->vtype.transform_bypass ? 1u : 0u, layout->stride,
+            layout->weight_offset, layout->tex_offset, layout->color_offset,
+            layout->normal_offset, layout->position_offset, ge->vaddr,
+            ge->iaddr, ge->base_addr, ge->offset_addr, ge->regs[CMD_ORIGIN],
+            ge->regs[CMD_TEXENABLE], ge->regs[CMD_TPSM] & 0xFu,
+            ge->regs[CMD_TMODE], ge->regs[CMD_TBP0], ge->regs[CMD_TBW0],
+            ge->regs[CMD_TSIZE0], ge->regs[CMD_CLUTFORMAT], clut_address,
+            ge->regs[CMD_CLUTADDRUPPER], ge->regs[CMD_LOADCLUT],
+            ge->clut_loaded ? 1u : 0u, ge->clut_loaded_bytes,
+            ge->regs[CMD_TEXFUNC], ge->regs[0xCA], ge->regs[CMD_TEXSCALEU],
+            ge->regs[CMD_TEXSCALEV], ge->regs[CMD_TEXOFFSETU],
+            ge->regs[CMD_TEXOFFSETV], ge->regs[CMD_FBP], ge->regs[CMD_FBW],
+            ge->regs[CMD_ZBP], ge->regs[CMD_ZBW], ge->regs[CMD_PSM],
+            ge->regs[CMD_CLEAR], vid->display_topaddr,
+            vid->display_stride, vid->display_format, vid->display_width,
+            vid->display_height,
+            ge->regs[0x21], ge->regs[0x22], ge->regs[0x24],
+            ge->regs[0x27], ge->regs[0x28],
+            ge->regs[0xD9], ge->regs[0xDA], ge->regs[0xDB],
+            ge->regs[0xDC], ge->regs[0xDD], ge->regs[0xDF],
+            ge->regs[0xE0], ge->regs[0xE1],
+            ge->regs[CMD_SCISSOR1], ge->regs[CMD_SCISSOR2],
+            ge->regs[CMD_REGION1], ge->regs[CMD_REGION2]);
+    fprintf(file,
+            "viewport_raw=(%06X,%06X,%06X;%06X,%06X,%06X) "
+            "viewport_float=(%.9g,%.9g,%.9g;%.9g,%.9g,%.9g)\n"
+            "raster_offset_raw=(%06X,%06X) raster_offset_pixels=(%.9g,%.9g)\n",
+            ge->regs[CMD_VIEWPORTXSCALE], ge->regs[CMD_VIEWPORTYSCALE],
+            ge->regs[CMD_VIEWPORTZSCALE], ge->regs[CMD_VIEWPORTXCENTER],
+            ge->regs[CMD_VIEWPORTYCENTER], ge->regs[CMD_VIEWPORTZCENTER],
+            ge_float24(ge->regs[CMD_VIEWPORTXSCALE]),
+            ge_float24(ge->regs[CMD_VIEWPORTYSCALE]),
+            ge_float24(ge->regs[CMD_VIEWPORTZSCALE]),
+            ge_float24(ge->regs[CMD_VIEWPORTXCENTER]),
+            ge_float24(ge->regs[CMD_VIEWPORTYCENTER]),
+            ge_float24(ge->regs[CMD_VIEWPORTZCENTER]),
+            ge->regs[CMD_OFFSETX], ge->regs[CMD_OFFSETY],
+            (float)(ge->regs[CMD_OFFSETX] & 0xFFFFu) / 16.0f,
+            (float)(ge->regs[CMD_OFFSETY] & 0xFFFFu) / 16.0f);
+
+    fprintf(file, "world=");
+    for (int i = 0; i < 12; i++) {
+        fprintf(file, "%s%.9g", i == 0 ? "[" : ",", ge->world_matrix[i]);
+    }
+    fprintf(file, "]\nview=");
+    for (int i = 0; i < 12; i++) {
+        fprintf(file, "%s%.9g", i == 0 ? "[" : ",", ge->view_matrix[i]);
+    }
+    fprintf(file, "]\nprojection=");
+    for (int i = 0; i < 16; i++) {
+        fprintf(file, "%s%.9g", i == 0 ? "[" : ",", ge->proj_matrix[i]);
+    }
+    fprintf(file, "]\n");
+
+    int captured_vertices = vertex_count < 4 ? vertex_count : 4;
+    for (int v = 0; v < captured_vertices; v++) {
+        uint64_t address = (uint64_t)ge->vaddr +
+                           (uint64_t)(unsigned int)v *
+                           (uint64_t)(unsigned int)layout->stride;
+        const uint8_t *bytes = address <= UINT32_MAX
+            ? (const uint8_t *)mips_get_ptr_range(
+                  cpu, (uint32_t)address, (size_t)layout->stride)
+            : NULL;
+        fprintf(file, "vertex[%d] address=%08X raw_position=(%.9g,%.9g,%.9g) ",
+                v, (uint32_t)address, raw_positions[v][0],
+                raw_positions[v][1], raw_positions[v][2]);
+        if (bytes == NULL) {
+            fprintf(file, "raw_bytes=<invalid>\n");
+            continue;
+        }
+        fprintf(file, "raw_bytes=");
+        int bytes_to_print = layout->stride < 128 ? layout->stride : 128;
+        for (int b = 0; b < bytes_to_print; b++) {
+            fprintf(file, "%s%02X", b == 0 ? "" : " ", bytes[b]);
+        }
+        float ndc_x = vertices[v].x / vertices[v].w;
+        float ndc_y = vertices[v].y / vertices[v].w;
+        fprintf(file,
+                "\n  clip=(%.9g,%.9g,%.9g,%.9g) "
+                "gles_clip=(%.9g,%.9g,%.9g,%.9g) "
+                "ndc=(%.9g,%.9g,%.9g) "
+                "screen_480x272=(%.9g,%.9g) uv=(%.9g,%.9g) "
+                "color=(%.9g,%.9g,%.9g,%.9g)\n",
+                clip_positions[v][0], clip_positions[v][1],
+                clip_positions[v][2], clip_positions[v][3],
+                vertices[v].x, vertices[v].y, vertices[v].z, vertices[v].w,
+                ndc_x, ndc_y, vertices[v].z / vertices[v].w,
+                (ndc_x + 1.0f) * 240.0f, (1.0f - ndc_y) * 136.0f,
+                vertices[v].u, vertices[v].v, vertices[v].r, vertices[v].g,
+                vertices[v].b, vertices[v].a);
+    }
+    if (fclose(file) != 0) {
+        fprintf(stderr, "[GE Dump Error] Failed closing '%s'.\n", path);
+        return;
+    }
+    fprintf(stderr, "[GE Dump] state=%s\n", path);
+
+    snprintf(path, sizeof(path), "%s_draw%u_state.json", prefix, draw_number);
+    file = fopen(path, "wb");
+    if (file == NULL) {
+        fprintf(stderr, "[GE Dump Error] Cannot open '%s' for writing.\n",
+                path);
+        return;
+    }
+    fprintf(file,
+            "{\n"
+            "  \"draw\": %u,\n"
+            "  \"pc\": %u,\n"
+            "  \"primitive\": %d,\n"
+            "  \"vtype\": %u,\n"
+            "  \"through\": %s,\n"
+            "  \"viewport_raw\": [%u,%u,%u,%u,%u,%u],\n"
+            "  \"offset_raw\": [%u,%u],\n"
+            "  \"world_float24\": [",
+            draw_number, ge->pc >= 4 ? ge->pc - 4 : 0, prim_type & 7,
+            ge->regs[0x12], ge->vtype.transform_bypass ? "true" : "false",
+            ge->regs[CMD_VIEWPORTXSCALE], ge->regs[CMD_VIEWPORTYSCALE],
+            ge->regs[CMD_VIEWPORTZSCALE], ge->regs[CMD_VIEWPORTXCENTER],
+            ge->regs[CMD_VIEWPORTYCENTER], ge->regs[CMD_VIEWPORTZCENTER],
+            ge->regs[CMD_OFFSETX], ge->regs[CMD_OFFSETY]);
+    for (int i = 0; i < 12; i++) {
+        fprintf(file, "%s%u", i == 0 ? "" : ",",
+                ge_encode_float24(ge->world_matrix[i]));
+    }
+    fprintf(file, "],\n  \"view_float24\": [");
+    for (int i = 0; i < 12; i++) {
+        fprintf(file, "%s%u", i == 0 ? "" : ",",
+                ge_encode_float24(ge->view_matrix[i]));
+    }
+    fprintf(file, "],\n  \"projection_float24\": [");
+    for (int i = 0; i < 16; i++) {
+        fprintf(file, "%s%u", i == 0 ? "" : ",",
+                ge_encode_float24(ge->proj_matrix[i]));
+    }
+    fprintf(file, "],\n  \"vertices\": [\n");
+    for (int v = 0; v < captured_vertices; v++) {
+        uint32_t address = ge->vaddr + (uint32_t)v *
+                           (uint32_t)layout->stride;
+        float ndc_x = vertices[v].x / vertices[v].w;
+        float ndc_y = vertices[v].y / vertices[v].w;
+        fprintf(file,
+                "    {\"address\": %u, "
+                "\"raw_position\": [%.9g,%.9g,%.9g], "
+                "\"clip\": [%.9g,%.9g,%.9g,%.9g], "
+                "\"gles_clip\": [%.9g,%.9g,%.9g,%.9g], "
+                "\"ndc\": [%.9g,%.9g,%.9g], "
+                "\"pixel\": [%.9g,%.9g]}%s\n",
+                address, raw_positions[v][0], raw_positions[v][1],
+                raw_positions[v][2], clip_positions[v][0],
+                clip_positions[v][1], clip_positions[v][2],
+                clip_positions[v][3], vertices[v].x, vertices[v].y,
+                vertices[v].z, vertices[v].w, ndc_x, ndc_y,
+                vertices[v].z / vertices[v].w,
+                (ndc_x + 1.0f) * 240.0f, (1.0f - ndc_y) * 136.0f,
+                v + 1 == captured_vertices ? "" : ",");
+    }
+    fprintf(file, "  ]\n}\n");
+    if (fclose(file) != 0) {
+        fprintf(stderr, "[GE Dump Error] Failed closing '%s'.\n", path);
+        return;
+    }
+    fprintf(stderr, "[GE Dump] coordinates=%s\n", path);
+}
+
 static int upload_ge_texture(MIPS_VideoSystem *vid, MIPS_CPU *cpu,
-                             MIPS_GraphicsEngine *ge) {
+                             MIPS_GraphicsEngine *ge, uint32_t draw_number,
+                             const char *dump_prefix) {
     uint32_t format = ge->regs[0xC3] & 0xF;
     uint32_t width = 1U << (ge->regs[0xB8] & 0xF);
     uint32_t height = 1U << ((ge->regs[0xB8] >> 8) & 0xF);
@@ -511,7 +999,11 @@ static int upload_ge_texture(MIPS_VideoSystem *vid, MIPS_CPU *cpu,
         return 0;
     }
     uint8_t *rgba = (uint8_t *)malloc((size_t)width * height * 4);
-    if (rgba == NULL) {
+    uint8_t *indices = format == 5 && dump_prefix != NULL
+        ? (uint8_t *)malloc((size_t)width * height) : NULL;
+    if (rgba == NULL || (format == 5 && dump_prefix != NULL && indices == NULL)) {
+        free(indices);
+        free(rgba);
         log_texture_error("Could not allocate texture conversion buffer.\n");
         return 0;
     }
@@ -529,6 +1021,7 @@ static int upload_ge_texture(MIPS_VideoSystem *vid, MIPS_CPU *cpu,
                  !mips_video_decode_display_pixel(
                      source + source_offset, format,
                      rgba + ((size_t)y * width + x) * 4))) {
+                free(indices);
                 free(rgba);
                 log_texture_error("Texture decode failed at (%u,%u).\n",
                                   x, y);
@@ -547,12 +1040,15 @@ static int upload_ge_texture(MIPS_VideoSystem *vid, MIPS_CPU *cpu,
                 } else {
                     memcpy(&index, source + source_offset, sizeof(index));
                 }
+                if (indices != NULL) indices[(size_t)y * width + x] =
+                    (uint8_t)index;
 
                 uint32_t palette_index = ((index >> clut_shift) & clut_mask) |
                                          clut_start;
                 uint32_t palette_entries = ge->clut_loaded_bytes /
                                            clut_entry_bytes;
                 if (palette_index >= palette_entries) {
+                    free(indices);
                     free(rgba);
                     log_texture_error(
                         "Indexed texture CLUT index %u is outside loaded "
@@ -563,6 +1059,7 @@ static int upload_ge_texture(MIPS_VideoSystem *vid, MIPS_CPU *cpu,
                 if (!mips_video_decode_display_pixel(
                         ge->clut + (size_t)palette_index * clut_entry_bytes,
                         clut_format, rgba + ((size_t)y * width + x) * 4)) {
+                    free(indices);
                     free(rgba);
                     log_texture_error("CLUT decode failed at index %u.\n",
                                       palette_index);
@@ -571,6 +1068,12 @@ static int upload_ge_texture(MIPS_VideoSystem *vid, MIPS_CPU *cpu,
             }
         }
     }
+    if (dump_prefix != NULL) {
+        ge_dump_texture_data(dump_prefix, draw_number, ge, source, source_size,
+                             width, height, format, clut_format,
+                             clut_entry_bytes, indices, rgba);
+    }
+    free(indices);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, vid->ge_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -584,6 +1087,40 @@ static int upload_ge_texture(MIPS_VideoSystem *vid, MIPS_CPU *cpu,
                  (GLsizei)height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
     free(rgba);
     return 1;
+}
+
+static const char *ge_dump_prefix_for_draw(uint32_t draw_number) {
+    static int initialized;
+    static uint32_t target_draw;
+    static char prefix[384];
+    if (!initialized) {
+        initialized = 1;
+        const char *draw_setting = getenv("MIPS_GE_DUMP_DRAW");
+        if (draw_setting != NULL && draw_setting[0] != '\0') {
+            char *end = NULL;
+            unsigned long parsed = strtoul(draw_setting, &end, 10);
+            if (end != draw_setting && *end == '\0' && parsed > 0 &&
+                parsed <= UINT32_MAX) {
+                target_draw = (uint32_t)parsed;
+            } else {
+                fprintf(stderr,
+                        "[GE Dump Error] Invalid MIPS_GE_DUMP_DRAW='%s'.\n",
+                        draw_setting);
+            }
+        }
+        const char *prefix_setting = getenv("MIPS_GE_DUMP_PREFIX");
+        if (prefix_setting != NULL && prefix_setting[0] != '\0') {
+            int length = snprintf(prefix, sizeof(prefix), "%s", prefix_setting);
+            if (length < 0 || (size_t)length >= sizeof(prefix)) {
+                prefix[0] = '\0';
+                fprintf(stderr,
+                        "[GE Dump Error] MIPS_GE_DUMP_PREFIX is too long.\n");
+            }
+        } else {
+            snprintf(prefix, sizeof(prefix), "GE-dump");
+        }
+    }
+    return target_draw == draw_number && prefix[0] != '\0' ? prefix : NULL;
 }
 
 static void transform_point_4x3(float out[3], const float in[3],
@@ -610,6 +1147,10 @@ static void transform_point_4x4(float out[4], const float in[3],
 
 void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEngine *ge, int prim_type, int vertex_count) {
     if (vid == NULL || !vid->initialized || ge == NULL || vertex_count <= 0) return;
+    static uint32_t video_draw_number;
+    if (video_draw_number != UINT32_MAX) video_draw_number++;
+    uint32_t current_draw_number = video_draw_number;
+    const char *dump_prefix = ge_dump_prefix_for_draw(current_draw_number);
     int trace_texture_vertices = 0;
 
     static int trace_3d_enabled = -1;
@@ -687,7 +1228,8 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
             "(vtype=0x%06X); drawing vertex color only.\n",
             ge->regs[0x12]);
     }
-    if (texture_enabled && !upload_ge_texture(vid, cpu, ge)) {
+    if (texture_enabled &&
+        !upload_ge_texture(vid, cpu, ge, current_draw_number, dump_prefix)) {
         log_texture_error(
             "Texture state unavailable for this primitive; drawing vertex "
             "color only (vtype=0x%06X).\n",
@@ -731,6 +1273,8 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
     // Unpack MIPS memory into normalized GLES Vertices
     float min_ndc_x = 0.0f, max_ndc_x = 0.0f;
     float min_ndc_y = 0.0f, max_ndc_y = 0.0f;
+    float raw_positions[4][3] = {{0}};
+    float clip_positions[4][4] = {{0}};
     for (int v = 0; v < vertex_count; v++) {
         uint64_t curr_vaddr64 = (uint64_t)ge->vaddr + (uint64_t)v * stride;
         uint8_t *v_ptr = curr_vaddr64 <= UINT32_MAX
@@ -759,7 +1303,19 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
         float u = 0.0f, v_coord = 0.0f;
         uint16_t su = 0, sv = 0; // Initialize to secure compiler
         if (ge->vtype.tex_fmt != 0) {
-            if (ge->vtype.tex_fmt == 3) { // Float
+            if (ge->vtype.transform_bypass && ge->vtype.tex_fmt == 3) {
+                memcpy(&u, v_ptr + offset, 4);
+                memcpy(&v_coord, v_ptr + offset + 4, 4);
+            } else if (ge->vtype.transform_bypass &&
+                       ge->vtype.tex_fmt == 2) {
+                memcpy(&su, v_ptr + offset, 2);
+                memcpy(&sv, v_ptr + offset + 2, 2);
+                u = (float)su;
+                v_coord = (float)sv;
+            } else if (ge->vtype.transform_bypass) {
+                u = (float)v_ptr[offset] * (1.0f / 128.0f);
+                v_coord = (float)v_ptr[offset + 1] * (1.0f / 128.0f);
+            } else if (ge->vtype.tex_fmt == 3) { // Float
                 memcpy(&u, v_ptr + offset, 4);
                 memcpy(&v_coord, v_ptr + offset + 4, 4);
             } else if (ge->vtype.tex_fmt == 2) { // 16-bit short
@@ -775,12 +1331,15 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
                 v_coord = (float)v_ptr[offset + 1] * (1.0f / 128.0f) *
                           ge_float24(ge->regs[0x49]);
             }
-            if (ge->vtype.tex_fmt == 3) {
+            if (!ge->vtype.transform_bypass &&
+                ge->vtype.tex_fmt == 3) {
                 u *= ge_float24(ge->regs[0x48]);
                 v_coord *= ge_float24(ge->regs[0x49]);
             }
-            u += ge_float24(ge->regs[0x4A]);
-            v_coord += ge_float24(ge->regs[0x4B]);
+            if (!ge->vtype.transform_bypass) {
+                u += ge_float24(ge->regs[0x4A]);
+                v_coord += ge_float24(ge->regs[0x4B]);
+            }
         }
         vertices[v].u = u;
         vertices[v].v = v_coord;
@@ -829,6 +1388,11 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
                 z = (float)bz;
             }
         }
+        if (v < 4) {
+            raw_positions[v][0] = x;
+            raw_positions[v][1] = y;
+            raw_positions[v][2] = z;
+        }
         
         // Transform mapping check
         if (ge->vtype.transform_bypass) {
@@ -837,6 +1401,12 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
             vertices[v].y = 1.0f - (y / 136.0f);
             vertices[v].z = 0.0f;
             vertices[v].w = 1.0f;
+            if (v < 4) {
+                clip_positions[v][0] = vertices[v].x;
+                clip_positions[v][1] = vertices[v].y;
+                clip_positions[v][2] = vertices[v].z;
+                clip_positions[v][3] = vertices[v].w;
+            }
         } else {
             const float position[3] = {x, y, z};
             float world_position[3];
@@ -845,6 +1415,10 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
             transform_point_4x3(world_position, position, ge->world_matrix);
             transform_point_4x3(view_position, world_position, ge->view_matrix);
             transform_point_4x4(clip_position, view_position, ge->proj_matrix);
+            if (v < 4) {
+                memcpy(clip_positions[v], clip_position,
+                       sizeof(clip_positions[v]));
+            }
 
             if (!isfinite(clip_position[0]) || !isfinite(clip_position[1]) ||
                 !isfinite(clip_position[2]) || !isfinite(clip_position[3]) ||
@@ -862,7 +1436,6 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
                 ge->vaddr += (uint32_t)vertex_count * (uint32_t)stride;
                 return;
             }
-
             float viewport_x_scale = ge_float24(ge->regs[CMD_VIEWPORTXSCALE]);
             float viewport_y_scale = ge_float24(ge->regs[CMD_VIEWPORTYSCALE]);
             float viewport_z_scale = ge_float24(ge->regs[CMD_VIEWPORTZSCALE]);
@@ -908,6 +1481,11 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
             if (ndc_y < min_ndc_y) min_ndc_y = ndc_y;
             if (ndc_y > max_ndc_y) max_ndc_y = ndc_y;
         }
+    }
+    if (dump_prefix != NULL) {
+        ge_dump_draw_state(dump_prefix, current_draw_number, vid, cpu, ge,
+                           prim_type, vertex_count, &layout, raw_positions,
+                           clip_positions, vertices);
     }
     if (trace_texture_vertices) {
         float min_u = vertices[0].u;
@@ -1160,6 +1738,7 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
 
 bool mips_video_present(MIPS_VideoSystem *vid) {
     if (vid == NULL || !vid->initialized) return false;
+    mips_video_begin_frame(vid);
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_QUIT) vid->close_requested = true;
@@ -1175,6 +1754,7 @@ bool mips_video_present(MIPS_VideoSystem *vid) {
         glClearColor(0.12f, 0.12f, 0.14f, 1.0f);
     }
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    vid->frame_started = false;
     return false;
 }
 
@@ -1182,6 +1762,7 @@ void mips_video_draw_test_triangle(MIPS_VideoSystem *vid) {
     if (vid == NULL || !vid->initialized) return;
     
     // Clear screen to graphite
+    vid->frame_started = true;
     glClearColor(0.15f, 0.15f, 0.18f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     

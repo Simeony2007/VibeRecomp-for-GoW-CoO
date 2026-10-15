@@ -79,6 +79,53 @@ static bool g_psp_interrupts_enabled = true;
 static int g_async_default_priority = 0x20;
 static unsigned int g_raw_sector_open_count = 0;
 
+static uint32_t hle_io_hash(const uint8_t *data, size_t size) {
+    uint32_t hash = 2166136261u;
+    for (size_t i = 0; i < size; i++) {
+        hash ^= data[i];
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+static void hle_trace_asset_read(const HLE_File *file, const char *operation,
+                                 uint64_t file_offset, int requested,
+                                 ssize_t result, uint32_t guest_address,
+                                 const uint8_t *source,
+                                 const uint8_t *guest_destination) {
+    static int enabled = -1;
+    static unsigned int event_count;
+    if (enabled < 0) {
+        const char *setting = getenv("MIPS_GE_TRACE_IO_DATA");
+        enabled = setting != NULL && strcmp(setting, "1") == 0;
+    }
+    if (!enabled || file == NULL ||
+        (strstr(file->psp_path, "splash_screens.bin") == NULL &&
+         strstr(file->psp_path, "frontend_assets.bin") == NULL &&
+         strstr(file->psp_path, "take.png") == NULL)) {
+        return;
+    }
+    unsigned int event = __sync_add_and_fetch(&event_count, 1);
+    if (event > 128) {
+        if (event == 129) {
+            fprintf(stderr,
+                    "[GE IO Trace] event limit reached (128 asset reads).\n");
+        }
+        return;
+    }
+    size_t bytes = result > 0 ? (size_t)result : 0;
+    uint32_t source_hash = source != NULL ? hle_io_hash(source, bytes) : 0;
+    uint32_t destination_hash = guest_destination != NULL
+        ? hle_io_hash(guest_destination, bytes) : 0;
+    fprintf(stderr,
+            "[GE IO Trace] op=%s path='%s' offset=%llu requested=%d "
+            "result=%lld guest_dst=%08X source_fnv1a=%08X "
+            "guest_fnv1a=%08X\n",
+            operation, file->psp_path,
+            (unsigned long long)file_offset, requested, (long long)result,
+            guest_address, source_hash, destination_hash);
+}
+
 static uint32_t read_le32(const uint8_t *p) {
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
            ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
@@ -691,6 +738,11 @@ static void *async_io_read_worker(void *arg) {
         (uint8_t *)malloc(file->async_size) : NULL;
     ssize_t read_bytes = -1;
     int result = -1;
+    uint64_t file_offset = file->is_raw_sector
+        ? file->raw_position
+        : (file->linux_fd >= 0
+               ? (uint64_t)lseek(file->linux_fd, 0, SEEK_CUR) : 0);
+    void *guest_destination = NULL;
     if (temp_buf != NULL || file->async_size == 0) {
         if (file->is_raw_sector) {
             uint64_t remaining = file->raw_length - file->raw_position;
@@ -712,12 +764,17 @@ static void *async_io_read_worker(void *arg) {
                                        (size_t)read_bytes);
         if (dst != NULL) {
             if (read_bytes > 0) memcpy(dst, temp_buf, (size_t)read_bytes);
+            guest_destination = dst;
             result = (int)read_bytes;
         } else {
             result = -2;
         }
     }
 
+    hle_trace_asset_read(file, "sceIoReadAsync", file_offset,
+                         (int)file->async_size, read_bytes,
+                         file->async_buffer, temp_buf,
+                         (const uint8_t *)guest_destination);
     free(temp_buf);
 
     pthread_mutex_lock(&file->async_mutex);
@@ -845,6 +902,10 @@ static int hle_sceIoRead(MIPS_HLE_Kernel *kernel, int fd, MIPS_CPU *cpu, uint32_
     if (ptr == NULL) return -2; // Invalid RAM target
 
     HLE_File *file = &kernel->files[slot];
+    uint64_t file_offset = file->is_raw_sector
+        ? file->raw_position
+        : (file->linux_fd >= 0
+               ? (uint64_t)lseek(file->linux_fd, 0, SEEK_CUR) : 0);
     ssize_t read_bytes;
     if (file->is_raw_sector) {
         uint64_t remaining = file->raw_length - file->raw_position;
@@ -858,6 +919,9 @@ static int hle_sceIoRead(MIPS_HLE_Kernel *kernel, int fd, MIPS_CPU *cpu, uint32_
     } else {
         read_bytes = read(file->linux_fd, ptr, (size_t)size);
     }
+    hle_trace_asset_read(file, "sceIoRead", file_offset, size, read_bytes,
+                         ram_addr, NULL,
+                         read_bytes >= 0 ? (const uint8_t *)ptr : NULL);
     return (int)read_bytes;
 }
 
@@ -1933,9 +1997,6 @@ void mips_hle_syscall(MIPS_CPU *cpu, MIPS_HLE_Kernel *kernel) {
             }
             mips_ge_begin_list(&kernel->ge);
             mips_ge_run_list(&kernel->ge, cpu, arg0, arg1);
-            if (mips_video_present((MIPS_VideoSystem *)kernel->video_system)) {
-                cpu->exit_requested = true;
-            }
             return_val = 1; // List ID
             trace_ge_lifecycle("enqueue_complete", cpu, &kernel->ge,
                                arg0, arg1, arg2, (uint32_t)return_val);
@@ -1964,9 +2025,6 @@ void mips_hle_syscall(MIPS_CPU *cpu, MIPS_HLE_Kernel *kernel) {
             kernel->ge.stall_pc = new_stall;
             if (kernel->ge.running && kernel->ge.pc != new_stall) {
                 mips_ge_run_list(&kernel->ge, cpu, kernel->ge.pc, new_stall);
-                if (mips_video_present((MIPS_VideoSystem *)kernel->video_system)) {
-                    cpu->exit_requested = true;
-                }
             }
             return_val = 0;
             trace_ge_lifecycle("stall_update_complete", cpu, &kernel->ge,

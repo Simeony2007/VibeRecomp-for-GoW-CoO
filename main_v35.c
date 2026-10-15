@@ -33,6 +33,7 @@
 extern PatchedFallbackStub fallback_stubs[MAX_PATCHED_FALLBACKS];
 extern int fallback_stubs_count;
 extern uint32_t relocated_gp;
+static uint64_t fallback_call_counts[MAX_PATCHED_FALLBACKS];
 
 // NOVO: pasta real onde o jogo vive (derivada de argv[1], ex: "./umd0CH").
 // FIX: sanitize_path()/custom_sanitize_path() estavam com "./umd0/" e "./"
@@ -260,6 +261,7 @@ static bool trace_wrapped = false;
 static uint32_t emu_thread_entry __attribute__ ((unused)) = 0;
 static int32_t file_async_results[0x20] = {0};
 static uint32_t vblank_counter = 0;
+static uint64_t vblank_wait_count = 0;
 
 typedef struct {
     int id;
@@ -557,6 +559,32 @@ static void resolve_case_insensitive(char *resolved, const char *path) {
     strcat(resolved, p);
 }
 
+static void hle_display_wait_vblank(MIPS_CPU *cpu, uint32_t syscall_id) {
+    static int trace_enabled = -1;
+    if (trace_enabled < 0) {
+        const char *value = getenv("MIPS_TRACE_VBLANK");
+        trace_enabled = value != NULL && value[0] != '\0' &&
+                        strcmp(value, "0") != 0;
+    }
+
+    vblank_counter++;
+    uint64_t wait_number = ++vblank_wait_count;
+    MIPS_VideoSystem *video = (MIPS_VideoSystem *)kernel.video_system;
+    bool frame_pending = video != NULL && video->frame_started;
+    bool close_requested = video != NULL && mips_video_present(video);
+    if (close_requested) {
+        cpu->exit_requested = true;
+    }
+
+    if (trace_enabled && (wait_number <= 8 || wait_number % 60 == 0)) {
+        printf("[HLE Display VBlank] #%llu syscall=0x%05X pc=0x%08X "
+               "video=%u frame_pending=%u close=%u counter=%u\n",
+               (unsigned long long)wait_number, syscall_id, cpu->pc,
+               video != NULL, frame_pending, close_requested, vblank_counter);
+        fflush(stdout);
+    }
+}
+
 static void hle_syscall_impl(MIPS_CPU *cpu) {
     uint32_t inst_word = mips_read32(cpu, cpu->pc);
     uint32_t syscall_id = (inst_word >> 6) & 0xFFFFF;
@@ -625,7 +653,7 @@ static void hle_syscall_impl(MIPS_CPU *cpu) {
         return;
     }
     if (syscall_id == 0x60005) { // sceDisplayWaitVblankStartCB
-        vblank_counter++;
+        hle_display_wait_vblank(cpu, syscall_id);
         cpu->gpr[0x02] = 0;
         cpu->pc = cpu->gpr[0x1F];
         cpu->next_pc = cpu->pc + 4;
@@ -781,7 +809,7 @@ static void hle_syscall_impl(MIPS_CPU *cpu) {
         return;
     }
     if (syscall_id == 0x60003) { // sceDisplayWaitVblankStart()
-        vblank_counter++;
+        hle_display_wait_vblank(cpu, syscall_id);
         cpu->gpr[0x02] = 0;
         cpu->pc = cpu->gpr[0x1F];
         cpu->next_pc = cpu->pc + 4;
@@ -818,10 +846,10 @@ static void hle_syscall_impl(MIPS_CPU *cpu) {
 
     // Intercept our custom fallback syscall
     if (syscall_id >= 0x50000) {
-        static uint64_t fallback_call_counts[MAX_PATCHED_FALLBACKS];
         int idx = syscall_id - 0x50000;
         uint32_t ret_val = 0;
         if (idx >= 0 && idx < fallback_stubs_count) {
+            uint64_t calls = ++fallback_call_counts[idx];
             uint32_t nid = fallback_stubs[idx].nid;
 
             if (nid == 0x17C1684E) { // sceKernelReferThreadStatus
@@ -1363,7 +1391,6 @@ static void hle_syscall_impl(MIPS_CPU *cpu) {
                        cpu->gpr[0x04], cpu->gpr[0x05]);
             }
             else {
-                uint64_t calls = ++fallback_call_counts[idx];
                 if (calls <= 3 || calls % 10000 == 0) {
                     printf("[HLE Fallback] Unimplemented API called: %s -> NID: 0x%08X at PC: 0x%08X args=(%08X,%08X,%08X,%08X) (returns 0; call #%llu)\n",
                            fallback_stubs[idx].lib_name, nid, cpu->pc,
@@ -1675,6 +1702,11 @@ int main(int argc, char **argv) {
            cpu.pc, cpu.next_pc, cpu.bad_vaddr, cpu.last_fault_pc,
            cpu.last_fault_inst, cpu.last_fault_access,
            cpu.memory_fault_count, current_thread_id);
+    for (int i = 0; i < fallback_stubs_count; i++) {
+        printf("[HLE Fallback Summary] module=%s NID=0x%08X calls=%llu\n",
+               fallback_stubs[i].lib_name, fallback_stubs[i].nid,
+               (unsigned long long)fallback_call_counts[i]);
+    }
     fflush(stdout);
 
     mips_dispatcher_free(&dispatcher);

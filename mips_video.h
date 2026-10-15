@@ -45,6 +45,7 @@ typedef struct {
     uint32_t display_width;
     uint32_t display_height;
     bool debug_ge_only;
+    bool frame_started;
     
     bool initialized;
     bool close_requested;
