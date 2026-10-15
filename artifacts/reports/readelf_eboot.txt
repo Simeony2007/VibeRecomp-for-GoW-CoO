@@ -1,0 +1,30 @@
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              Processor Specific: (ffa0)
+  Machine:                           MIPS R3000
+  Version:                           0x1
+  Entry point address:               0x3ba4
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          3471704 (bytes into file)
+  Flags:                             0x10a23001, noreorder, gs464, eabi32, mips2
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         2
+  Size of section headers:           40 (bytes)
+  Number of section headers:         56
+  Section header string table index: 55
+
+Program Headers:
+  Type           Offset   VirtAddr   PhysAddr   FileSiz MemSiz  Flg Align
+  LOAD           0x000074 0x00000000 0x00302164 0x34b3c0 0x34b3c0 R E 0x4
+  LOAD           0x34b438 0x0034b3c0 0x00000000 0x04138 0x216bc RW  0x8
+
+ Section to Segment mapping:
+  Segment Sections...
+   00     .text .sceStub.text.sceAtrac3plus .sceStub.text.sceSasCore .sceStub.text.sceImpose .sceStub.text.sceUtility .sceStub.text.Kernel_Library .sceStub.text.sceUmdUser .sceStub.text.sceMpeg .sceStub.text.sceRtc .sceStub.text.scePower .sceStub.text.sceGe_user .sceStub.text.sceDisplay .sceStub.text.sceCtrl .sceStub.text.sceAudio .sceStub.text.sceSuspendForUser .sceStub.text.UtilsForUser .sceStub.text.ThreadManForUser .sceStub.text.SysMemUserForUser .sceStub.text.StdioForUser .sceStub.text.ModuleMgrForUser .sceStub.text.LoadExecForUser .sceStub.text.IoFileMgrForUser .lib.ent.top .lib.ent .lib.ent.btm .lib.stub.top .lib.stub .lib.stub.btm .rodata.sceModuleInfo .rodata.sceResident .rodata.sceNid .rodata .data .eh_frame .ctors .dtors 
+   01     .cplinit .psp_lib_mark_ .psp_lib_markimport_ .linkonce.d .bss 
