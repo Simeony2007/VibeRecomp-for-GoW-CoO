@@ -98,20 +98,40 @@ ARM64 que deve ser copiado para o R36S**. Para executar no aparelho e necessario
 compilar no proprio aparelho ou usar um cross-toolchain ARM64 apropriado e
 validar as bibliotecas/ABI do destino.
 
+### Controles de teclado
+
+O renderer atual traduz teclado para `sceCtrlReadBufferPositive` e
+`sceCtrlPeekBufferPositive`: setas controlam o direcional, Z/X/A/S mapeiam
+Cross/Circle/Square/Triangle, Enter e Shift direito mapeiam Start/Select, Q/E
+mapeiam L/R e o teclado numerico 4/6/8/2 controla o analogico. Ao perder o foco
+da janela, as teclas pressionadas sao limpas.
+
 O modo interpretador e recomendado para os traces que instrumentam
 `mips_interpreter_step`; traces colocados somente ali nao demonstram que um
 bloco executado via AOT tomou o mesmo caminho.
 
-## Investigacao atual: tela inicial do GOW
+## Investigacao atual: logos de abertura do GOW
 
 ### Sintoma observado
 
-O usuario relata que a execucao mais recente nao mudou visualmente em relacao
-ao run anterior: a tela fica preta durante o intervalo em que deveriam ocorrer
-os fades brancos e depois aparece novamente o padrao com um bloco preto no
-canto. O jogo nao foi confirmado como estando na tela inicial renderizada
-corretamente; essa continua sendo uma interpretacao dos fades e das listas
-submetidas, nao uma conclusao visual.
+O Run252 (interpretador puro, com a nova entrada de teclado) foi executado por
+ate quatro minutos. A janela e as capturas mostram preto/cinza, sem as logos da
+Sony ou da Ready at Dawn. O run nao prova que o jogo aceitou a tecla Z. O log
+confirma que `frontend_assets.bin` foi aberto e que `splash_screens.bin`
+(72.012 bytes) foi lido integralmente; isso nao prova que os dados tenham sido
+decodificados nem que tenham chegado a um draw visivel.
+
+As primeiras nove primitivas GE sao faixas `through` que cobrem a tela. O draw
+#10 e um quad preto sem textura com vertices de 480x272, representados pelo
+renderer como NDC de -480 a 480 e -272 a 272; o draw #11 e os seguintes incluem
+geometria fora do intervalo visivel. `sceMpegInit` retorna sucesso, mas os
+imports de `sceVideocodec` nao registram chamadas no resumo do run. O scanner
+do asset nao encontra assinaturas PSMF/MPEG comuns; isso nao prova qual e o
+formato proprietario dos dados.
+
+Portanto, a proxima tarefa e rastrear o consumidor/formato dos assets de
+abertura e a cadeia que deveria produzir os logos (GE 2D ou outro caminho),
+nao ajustar gameplay 3D sem um frame visivel comparavel.
 
 ### O que foi corrigido e medido
 
@@ -318,6 +338,12 @@ The trace prints the first eight waits, then every 60th wait.
 
 ### Proximos diagnosticos sugeridos
 
+- Rastrear a leitura e os consumidores de `splash_screens.bin` e
+  `frontend_assets.bin` ate o upload de textura/estado GE ou a chamada de
+  decodificacao correspondente. Identificar qual fonte efetivamente contem as
+  logos antes de escolher entre renderer 2D, formato de asset ou HLE de video.
+- Capturar draw/texture/vertices/CLUT e backbuffer no primeiro frame que deveria
+  mostrar uma logo; os frames 1-20 do Run252 documentam somente preto/cinza.
 - Rastrear, no draw #11 da mesma display list, a decodificacao de vertices, as
   matrizes world/view/projection, os registradores de viewport scale/center e
   os offsets. Registrar os valores crus e as coordenadas intermediarias.
@@ -331,9 +357,15 @@ The trace prints the first eight waits, then every 60th wait.
 - Se for necessario, rastrear a origem do valor `TSIZE0` e os escritores da
   display list por caminhos que nao passem pelos helpers instrumentados.
 - Investigar o caminho de video do splash separadamente apenas se surgirem
-  evidencias de chamadas de decode ou dados PMF/PSS.
+  evidencias adicionais de chamadas de decode ou dados PMF/PSS; o Run252 leu o
+  asset, mas nao registrou chamadas de `sceVideocodec`.
 
 ### Capturas opcionais do draw e de I/O
+
+Para capturar a imagem apresentada na janela, defina
+`MIPS_VIDEO_CAPTURE_PREFIX`; o renderer salva as primeiras 20 apresentações
+como RGBA. `MIPS_VIDEO_CAPTURE_SKIP=N` descarta as primeiras N apresentações
+antes de começar a capturar, útil para inspecionar uma tela após a inicialização.
 
 O renderer pode salvar os dados efetivamente usados por um draw, sem alterar o
 estado do jogo. `MIPS_GE_DUMP_DRAW` seleciona o indice da chamada

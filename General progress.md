@@ -32,7 +32,7 @@ Arquivos-chave: `main_v35.c`, `mips_hle.c/.h`, `mips_linker.c`,
 | CPU interpretada | Implementa um subconjunto amplo de Allegrex/MIPS, COP1 e VFPU; ainda ha operacoes nao suportadas e semanticas aproximadas. |
 | AOT | Tradutor estatico para um subconjunto inteiro/MIPS, com blocos especificos ao GOW e fallback para o interpretador; nao traduz VFPU de forma abrangente. |
 | HLE | I/O, threads/sincronizacao, memoria, UMD, display, controles, GE e audio possuem rotas; parte delas e simplificada e imports restantes podem cair em zero generico. |
-| GE / 2D | Maquina de estado parcial, leitura de display lists, vertices, primitivas, texturas diretas/CLUT e apresentacao GLES existem. UVs `through` foram corrigidos contra PPSSPP; cada draw GE inicia/marca o frame e a apresentacao nao troca frames vazios; listas GE acumulam ate o VBlank. Nao e uma implementacao completa do GE PSP. |
+| GE / 2D | Maquina de estado parcial, leitura de display lists, vertices, primitivas, texturas diretas/CLUT e apresentacao GLES existem. UVs `through` sao normalizados e a origem vertical das texturas GE foi corrigida; cada draw GE inicia/marca o frame e a apresentacao nao troca frames vazios; listas GE acumulam ate o VBlank. Nao e uma implementacao completa do GE PSP. |
 | GE / 3D | Matrizes world/view/projection e conversao de vertices estao presentes; Ozone comprovou geometria visivel, mas distorcida. GOW ainda apresenta falhas visuais. |
 | Framebuffer | O renderer apresenta buffers guest e desenha GE diretamente na superficie GLES; draws nao sao rasterizados de volta ao framebuffer guest. |
 | Audio | Canais PCM SDL2 funcionam como modelo de saida; SAS mantem estado de vozes, mas a sintese/mixagem SAS real esta incompleta. |
@@ -503,13 +503,74 @@ valida o caminho sintético de UV, mas ainda precisa de confirmação visual no
 Run234 foi confirmado visualmente pelo usuário: os vazamentos de pixels
 sumiram e o tabuleiro ficou quase correto. Comparado à captura do PPSSPP, o
 tabuleiro tem escala e posição relativas semelhantes, mas o fundo continua
-preto; faltam os textos de score/tempo/possibilidades e o número `2`, e várias
-células mostram conteúdo/colorização fragmentados em vez dos espaços vazios
-uniformes. O log mostra repetição de primitivas 2D texturizadas e nenhum CPU
-fault no encerramento. Portanto, UV `through` corrigido é um avanço validado,
-não fidelidade completa. Próximo passo: capturar e comparar uma célula e um
-sprite de texto (estado GE, UV e textura) para localizar a próxima diferença
-sem presumir se é atlas, alpha/blend ou ordenação.
+na captura daquele build; faltavam os textos de score/tempo/possibilidades e o
+número `2`, e várias células mostravam conteúdo/colorização fragmentados em
+vez dos espaços vazios uniformes. O log mostra repetição de primitivas 2D
+texturizadas e nenhum CPU fault no encerramento. Portanto, UV `through`
+corrigido foi um avanço validado, não fidelidade completa.
+
+Run235 capturou o estado do draw #1: `CLEARMODE=0x101`, 16 vértices
+`through` formando retângulos de fundo, RGB branco e alpha de vértice zero,
+com blend habilitado. PPSSPP em clear mode ignora textura e blending e aplica
+as máscaras de canal; nosso renderer deixava o blend comum ativo, então o
+alpha zero não escrevia o fundo e a tela permanecia preta. O renderer agora
+aplica as regras relevantes de clear mode (sem textura/blend, máscaras RGB/
+alpha e escrita de depth), cobertas por uma regressão que confirma escrita de
+RGB mesmo com alpha zero.
+
+As primeiras capturas pós-fix (Run236) mostraram outro detalhe: a lista GE que
+limpa o fundo podia ser apresentada sozinha antes da lista de sprites,
+produzindo quadros brancos intercalados. O pipeline agora mantém a composição
+pendente por até dois VBlanks quando só houve clear mode, processa atualizações
+de scanout mesmo após o início do frame e não reimporta conteúdo guest
+inalterado. Run242 confirma nas capturas GLES #5-20 a composição estável do
+fundo branco e tabuleiro através da alternância de FBP; encerrou pelo timeout
+de 15 segundos (`exit=124`), com `faults=0` e shutdown limpo. Os testes
+direcionados de textura, ciclo de framebuffer, framebuffer e 3D básico, e o
+build do interpretador passaram.
+
+Run244/245 completaram a comparação do sprite de célula: o draw #34 usa uma
+textura direta 64x64 (`TBP0=0x4A3700`) e vértices `through` de cima-esquerda a
+baixo-direita, enquanto os bytes decodificados mantêm a ordem de linhas PSP.
+O shader, porém, invertia V para todas as texturas GE (`1-v`), causando a
+amostragem da metade vertical oposta; removi essa inversão e atualizei a
+regressão para exigir a primeira linha da textura em UV y=0.25. O teste
+`test_video_texture_pipeline` passa. Em Run246, as capturas #5-20 preservam a
+composição estável e o log termina com `faults=0` e shutdown limpo. O usuário
+confirma visualmente que a tela ficou perfeita. Comparando as capturas com
+PPSSPP, coincidem a posição relativa, o HUD, a grade 4x4, a célula `2` na
+segunda linha/quarta coluna e o fundo branco. A captura do emulador local é
+960x544 e a área de jogo do PPSSPP é aproximadamente 1280x720; por isso a
+grade mede cerca de 384x384 contra 512x512, mantendo proporções próximas:
+40% da largura e 71% da altura em ambas. Score e possibilidades coincidem; o
+timer mostra tempos diferentes porque foram capturados em segundos distintos.
+Esse resultado confirma o avanço no caminho de texturas GE 2D do 2048, mas
+não comprova fidelidade geral nem resolve por si só o GE 3D, framebuffer e
+outros problemas do GOW.
+
+## Verificacao seguinte no GOW
+
+Run247 repetiu o teste do GOW depois da correção V-flip. Run249 adicionou
+captura seletiva a partir da apresentação 11: as apresentações 11-30 fazem
+185 draws GE cada, mas as superfícies capturadas têm somente duas cores, sem
+cena reconhecível. VBlank está ativo; os timeouts terminam com `faults=0` e
+shutdown limpo. As primeiras capturas do Run248 não foram produzidas porque
+o jogo emitiu menos apresentações que o `SKIP=1200`, o que motivou usar
+`SKIP=10` no Run249.
+
+Run251 capturou o draw #1 e seus strips clear `through` consecutivos, que
+varrem a tela. Os draws 10 em diante incluem a geometria suspeita. O draw #11
+usa uma textura CLUT8 resolvida com dados
+presentes, mas os seus vértices chegam a NDC X≈374-396 e Y≈-23..3; outros
+draws próximos também ficam muito fora do viewport. Essa é uma condição
+observada, não ainda a causa raiz do ecrã vazio: precisamos comparar o mesmo
+instante/lista com PPSSPP e identificar o primeiro draw que deveria produzir
+a cena, antes de corrigir a transformacao ou o estado GE.
+
+Foi adicionada a opção de diagnóstico `MIPS_VIDEO_CAPTURE_SKIP=N` para
+ignorar apresentações iniciais e capturar as próximas 20, documentada no
+README e coberta pelo teste do ciclo de framebuffer. Os testes de ciclo,
+textura e 3D básico passam; o build do interpretador também.
 
 Run215 confirmou mudanca visual no 2048: a captura do usuario mostra uma area
 grande quadriculada em fundo preto, mas ainda nao o tabuleiro reconhecivel. O
@@ -837,23 +898,33 @@ existencia prove que a causa foi corrigida.
 
 ## 7. Prioridade tecnica recomendada
 
-1. Expandir a cobertura GE 2D e investigar fidelidade/pixels ainda incorretos
-   no 2048; o flicker recorrente foi validado como resolvido no Run233.
-2. Capturar simultaneamente janela/backbuffer GLES, framebuffer guest e estado
-   GE do GOW no mesmo frame; identificar FBP/FBW/formato e onde os pixels
-   desaparecem.
-3. Comparar coordenadas/estado do draw #11 com PPSSPP e localizar o estagio
-   matematico onde X/NDC sai da faixa esperada antes de alterar transformacoes.
-4. Investigar o estado de blend FIXA/FIXB e outros estados GE somente com caso
-   reproduzivel e comparacao de pixels.
-5. Validar as instrucoes Allegrex/VFPU realmente usadas pelo GOW com testes
-   diferenciais, incluindo a cobertura AOT/hibrida apos a correcao do
-   interpretador.
-6. Usar PSP Revolution e PSP Keys Test como testes diagnosticos adicionais,
-   sem substituir o GOW como objetivo nem confundir inicializacao com render.
-7. Completar HLE por contagem de imports chamados; priorizar tempo, cache/GE,
+1. Fazer aparecer as logos de abertura do GOW. Run252 mostra somente preto/cinza:
+   o log confirma leitura integral de `splash_screens.bin` e abertura de
+   `frontend_assets.bin`, mas nao identifica a decodificacao nem um draw com as
+   logos. Determinar o formato/consumidor do asset e se a abertura usa GE 2D ou
+   outro caminho (incluindo MPEG apenas se a evidencia de chamada justificar);
+   corrigir primeiro o caminho comprovado e validar pelas capturas.
+2. Manter o 2048 como regressao de GE 2D, nao como bloqueio ativo: o usuario
+   confirmou que a imagem ficou visualmente correta. Reabrir fidelidade 2D do
+   homebrew somente se uma mudanca regredir esse teste ou surgir uma diferenca
+   reproduzivel.
+3. Depois das logos, validar a entrada do usuario e avancar pelo menu do GOW.
+   O handler PSP de controles agora recebe teclado (setas, Z/X/A/S, Enter,
+   Shift direito, Q/E e teclado numerico para analogico), com regressao SDL; o
+   Run252 nao confirma que o jogo respondeu ao input nem chegou ao menu.
+4. Somente apos confirmar o fluxo de abertura/menu, comparar a referencia de
+   gameplay PPSSPP com o mesmo estado local. Capturar backbuffer GLES,
+   framebuffer guest e estado GE sincronizados; entao investigar draw #11 e
+   as coordenadas fora do NDC antes de alterar transforms 3D.
+5. Investigar blend FIXA/FIXB e outros estados GE com caso reproduzivel e
+   comparacao de pixels.
+6. Validar as instrucoes Allegrex/VFPU realmente usadas pelo GOW com testes
+   diferenciais, incluindo cobertura AOT/hibrida apos correcoes do interpretador.
+7. Usar PSP Revolution e PSP Keys Test como testes diagnosticos adicionais, sem
+   substituir o GOW como objetivo nem confundir inicializacao com render.
+8. Completar HLE por contagem de imports chamados; priorizar tempo, cache/GE,
    SAS e sincronismo conforme evidencias, evitando stubs de sucesso.
-8. Medir desempenho e validar no ARM64/R36S somente depois de consistencia
+9. Medir desempenho e validar no ARM64/R36S somente depois de consistencia
    funcional; build WSL/x86-64 nao prova build/execucao nativa ARM64.
 
 ## 8. Interfaces publicas de referencia

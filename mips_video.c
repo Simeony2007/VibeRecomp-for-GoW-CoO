@@ -43,7 +43,7 @@ static const char *fragment_shader_source =
     "    if (uUseFramebuffer != 0) {\n"
     "        outColor = texture(uFramebuffer, fragTexCoord);\n"
     "    } else if (uUseTexture != 0) {\n"
-    "        vec4 texel = texture(uTexture, vec2(fragTexCoord.x, 1.0 - fragTexCoord.y));\n"
+    "        vec4 texel = texture(uTexture, fragTexCoord);\n"
     "        if (uTextureHasAlpha == 0) texel.a = 1.0;\n"
     "        if (uTextureFunction == 1) {\n"
     "            outColor = vec4(mix(fragColor.rgb, texel.rgb, texel.a), fragColor.a);\n"
@@ -460,6 +460,8 @@ static void capture_present_backbuffer(MIPS_VideoSystem *vid) {
     static int initialized;
     static char prefix[512];
     static uint32_t capture_count;
+    static uint32_t presentation_count;
+    static uint32_t skip_presentations;
     enum { MAX_PRESENT_CAPTURES = 20 };
 
     if (!initialized) {
@@ -474,8 +476,23 @@ static void capture_present_backbuffer(MIPS_VideoSystem *vid) {
                         "is too long.\n");
             }
         }
+        const char *skip_setting = getenv("MIPS_VIDEO_CAPTURE_SKIP");
+        if (skip_setting != NULL && skip_setting[0] != '\0') {
+            char *end = NULL;
+            unsigned long parsed = strtoul(skip_setting, &end, 10);
+            if (end != skip_setting && *end == '\0' && parsed <= UINT32_MAX) {
+                skip_presentations = (uint32_t)parsed;
+            } else {
+                fprintf(stderr,
+                        "[Video Capture Error] Invalid "
+                        "MIPS_VIDEO_CAPTURE_SKIP='%s'.\n",
+                        skip_setting);
+            }
+        }
     }
     if (prefix[0] == '\0' || capture_count >= MAX_PRESENT_CAPTURES) return;
+    if (presentation_count != UINT32_MAX) presentation_count++;
+    if (presentation_count <= skip_presentations) return;
 
     int width = 0;
     int height = 0;
@@ -553,10 +570,16 @@ static void capture_present_backbuffer(MIPS_VideoSystem *vid) {
     capture_count = capture_number;
     fprintf(stderr,
             "[Video Capture] #%u size=%dx%d fbp=%08X fbw=%u format=%u "
-            "draws=%u total_draws=%u file=%s\n",
+            "draws=%u total_draws=%u framebuffer_dirty=%u "
+            "framebuffer_changed=%u non_clear_draw=%u file=%s "
+            "presentation=%u\n",
             capture_number, width, height, vid->display_topaddr,
             vid->display_stride, vid->display_format,
-            vid->draw_count_since_present, vid->total_draw_count, path);
+            vid->draw_count_since_present, vid->total_draw_count,
+            vid->framebuffer_dirty ? 1u : 0u,
+            vid->framebuffer_changed_since_present ? 1u : 0u,
+            vid->non_clear_draw_since_present ? 1u : 0u, path,
+            presentation_count);
 }
 
 void mips_video_set_framebuffer(MIPS_VideoSystem *vid, MIPS_CPU *cpu,
@@ -576,7 +599,7 @@ void mips_video_set_framebuffer(MIPS_VideoSystem *vid, MIPS_CPU *cpu,
 
 void mips_video_begin_frame(MIPS_VideoSystem *vid) {
     if (vid == NULL || !vid->initialized) return;
-    if (vid->frame_started) return;
+    if (vid->frame_started && !vid->framebuffer_dirty) return;
 
     glBindFramebuffer(GL_FRAMEBUFFER, vid->render_framebuffer);
     vid->frame_started = true;
@@ -588,6 +611,7 @@ void mips_video_begin_frame(MIPS_VideoSystem *vid) {
     if (vid->debug_ge_only) {
         glClearColor(0.30f, 0.30f, 0.30f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
+        vid->framebuffer_dirty = false;
         return;
     }
     if (vid->display_cpu == NULL || vid->display_width == 0 ||
@@ -628,7 +652,10 @@ void mips_video_begin_frame(MIPS_VideoSystem *vid) {
         vid->display_snapshot_width != vid->display_width ||
         vid->display_snapshot_height != vid->display_height ||
         memcmp(vid->display_snapshot, source, source_size) != 0;
-    if (!framebuffer_changed) return;
+    if (!framebuffer_changed) {
+        vid->framebuffer_dirty = false;
+        return;
+    }
 
     uint8_t *snapshot = (uint8_t *)malloc(source_size);
     if (snapshot == NULL) {
@@ -707,6 +734,8 @@ void mips_video_begin_frame(MIPS_VideoSystem *vid) {
     vid->display_snapshot_width = vid->display_width;
     vid->display_snapshot_height = vid->display_height;
     vid->display_snapshot_valid = true;
+    vid->framebuffer_dirty = false;
+    vid->framebuffer_changed_since_present = true;
 }
 
 static float ge_float24(uint32_t value) {
@@ -1415,11 +1444,14 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
         return;
     }
     int texture_requested = (ge->regs[0x1E] & 1) != 0;
-    int texture_enabled = texture_requested && ge->vtype.tex_fmt != 0;
+    int clear_mode = (ge->regs[CMD_CLEAR] & 1) != 0;
+    int texture_enabled = !clear_mode && texture_requested &&
+                          ge->vtype.tex_fmt != 0;
+    if (!clear_mode) vid->non_clear_draw_since_present = true;
     uint32_t texture_width = 1U << (ge->regs[CMD_TSIZE0] & 0xF);
     uint32_t texture_height = 1U << ((ge->regs[CMD_TSIZE0] >> 8) & 0xF);
     if (vid->debug_ge_only) texture_enabled = 0;
-    if (texture_requested && ge->vtype.tex_fmt == 0) {
+    if (!clear_mode && texture_requested && ge->vtype.tex_fmt == 0) {
         log_texture_error(
             "Texture enable ignored for primitive without UV attributes "
             "(vtype=0x%06X); drawing vertex color only.\n",
@@ -1809,7 +1841,8 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
                      environment_color);
     }
     glActiveTexture(GL_TEXTURE0);
-    if (!vid->debug_ge_only && (ge->regs[0x21] & 1) != 0) {
+    if (!clear_mode && !vid->debug_ge_only &&
+        (ge->regs[0x21] & 1) != 0) {
         static const GLenum blend_src_factors[6] = {
             GL_DST_COLOR, GL_ONE_MINUS_DST_COLOR, GL_SRC_ALPHA,
             GL_ONE_MINUS_SRC_ALPHA, GL_DST_ALPHA, GL_ONE_MINUS_DST_ALPHA
@@ -1858,13 +1891,27 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
         glDisable(GL_BLEND);
         glBlendEquation(GL_FUNC_ADD);
     }
-    if (!ge->vtype.transform_bypass &&
+    if (clear_mode) {
+        GLboolean color_mask = (ge->regs[CMD_CLEAR] & 0x100) != 0
+                                   ? GL_TRUE : GL_FALSE;
+        GLboolean alpha_mask = (ge->regs[CMD_CLEAR] & 0x200) != 0
+                                   ? GL_TRUE : GL_FALSE;
+        glColorMask(color_mask, color_mask, color_mask, alpha_mask);
+    } else {
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    }
+    if (clear_mode && (ge->regs[CMD_CLEAR] & 0x400) != 0) {
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_ALWAYS);
+        glDepthMask(GL_TRUE);
+    } else if (!ge->vtype.transform_bypass &&
         (ge->regs[CMD_ZTESTENABLE] & 1) != 0) {
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(GL_LEQUAL);
         glDepthMask(GL_TRUE);
     } else {
         glDisable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE);
     }
     glDisable(GL_CULL_FACE);
     static unsigned int primitive_log_count = 0;
@@ -1937,6 +1984,7 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
     glBindVertexArray(0);
     glUseProgram(0);
     glDisable(GL_BLEND);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     
     free(draw_vertices);
     
@@ -1947,12 +1995,34 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
 bool mips_video_present(MIPS_VideoSystem *vid) {
     if (vid == NULL || !vid->initialized) return false;
     SDL_Event event;
+    SDL_AtomicLock(&vid->input_lock);
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_QUIT) vid->close_requested = true;
+        if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+            SDL_Scancode scancode = event.key.keysym.scancode;
+            if (scancode >= 0 && scancode < SDL_NUM_SCANCODES) {
+                vid->host_keys[scancode] = event.type == SDL_KEYDOWN;
+            }
+        }
+        if (event.type == SDL_WINDOWEVENT &&
+            event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+            memset(vid->host_keys, 0, sizeof(vid->host_keys));
+        }
     }
+    SDL_AtomicUnlock(&vid->input_lock);
     if (vid->close_requested) return true;
     if (!vid->frame_started && !vid->framebuffer_dirty) return false;
     mips_video_begin_frame(vid);
+    if (vid->has_presented_frame && !vid->framebuffer_dirty &&
+        !vid->framebuffer_changed_since_present &&
+        vid->draw_count_since_present != 0 &&
+        !vid->non_clear_draw_since_present) {
+        if (vid->clear_only_vblanks_deferred < 2) {
+            /* A PSP 2D frame may clear in one GE list and draw in the next. */
+            vid->clear_only_vblanks_deferred++;
+            return false;
+        }
+    }
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, vid->render_framebuffer);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -1962,11 +2032,50 @@ bool mips_video_present(MIPS_VideoSystem *vid) {
     capture_present_backbuffer(vid);
     SDL_GL_SwapWindow(vid->window);
     vid->draw_count_since_present = 0;
+    vid->framebuffer_changed_since_present = false;
+    vid->has_presented_frame = true;
+    vid->non_clear_draw_since_present = false;
+    vid->clear_only_vblanks_deferred = 0;
     glBindFramebuffer(GL_FRAMEBUFFER, vid->render_framebuffer);
     glViewport(0, 0, 960, 544);
     vid->frame_started = false;
     vid->framebuffer_dirty = false;
     return false;
+}
+
+void mips_video_get_ctrl_state(MIPS_VideoSystem *vid,
+                               uint32_t *buttons, uint8_t *lx, uint8_t *ly) {
+    if (buttons == NULL || lx == NULL || ly == NULL) return;
+
+    uint32_t state = 0;
+    uint8_t analog_x = 128;
+    uint8_t analog_y = 128;
+    if (vid != NULL && vid->initialized) {
+        SDL_AtomicLock(&vid->input_lock);
+        const bool *keys = vid->host_keys;
+        if (keys[SDL_SCANCODE_UP]) state |= 0x00000010;
+        if (keys[SDL_SCANCODE_RIGHT]) state |= 0x00000020;
+        if (keys[SDL_SCANCODE_DOWN]) state |= 0x00000040;
+        if (keys[SDL_SCANCODE_LEFT]) state |= 0x00000080;
+        if (keys[SDL_SCANCODE_Q]) state |= 0x00000100;
+        if (keys[SDL_SCANCODE_E]) state |= 0x00000200;
+        if (keys[SDL_SCANCODE_RETURN]) state |= 0x00000008;
+        if (keys[SDL_SCANCODE_RSHIFT]) state |= 0x00000001;
+        if (keys[SDL_SCANCODE_S]) state |= 0x00001000;
+        if (keys[SDL_SCANCODE_X]) state |= 0x00002000;
+        if (keys[SDL_SCANCODE_Z]) state |= 0x00004000;
+        if (keys[SDL_SCANCODE_A]) state |= 0x00008000;
+
+        if (keys[SDL_SCANCODE_KP_4]) analog_x = 0;
+        if (keys[SDL_SCANCODE_KP_6]) analog_x = 255;
+        if (keys[SDL_SCANCODE_KP_8]) analog_y = 0;
+        if (keys[SDL_SCANCODE_KP_2]) analog_y = 255;
+        SDL_AtomicUnlock(&vid->input_lock);
+    }
+
+    *buttons = state;
+    *lx = analog_x;
+    *ly = analog_y;
 }
 
 void mips_video_draw_test_triangle(MIPS_VideoSystem *vid) {

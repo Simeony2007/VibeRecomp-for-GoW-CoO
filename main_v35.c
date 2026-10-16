@@ -928,6 +928,12 @@ static void hle_syscall_impl(MIPS_CPU *cpu) {
     }
     if (syscall_id == 0x70001 || syscall_id == 0x70002) { // sceCtrlReadBufferPositive / sceCtrlPeekBufferPositive
         uint32_t pad_ptr = cpu->gpr[0x04];
+        MIPS_VideoSystem *video = (MIPS_VideoSystem *)kernel.video_system;
+        if (video != NULL) {
+            mips_video_get_ctrl_state(video, &g_ctrl_state.buttons,
+                                      &g_ctrl_state.lx, &g_ctrl_state.ly);
+        }
+        g_ctrl_state.time_stamp++;
         void *dst = mips_get_ptr_range(cpu, pad_ptr, sizeof(PSP_CtrlData));
         if (dst != NULL) {
             memcpy(dst, &g_ctrl_state, sizeof(PSP_CtrlData));

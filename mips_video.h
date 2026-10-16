@@ -57,11 +57,17 @@ typedef struct {
     bool debug_ge_only;
     bool frame_started;
     bool framebuffer_dirty;
+    bool framebuffer_changed_since_present;
+    bool has_presented_frame;
+    bool non_clear_draw_since_present;
+    uint8_t clear_only_vblanks_deferred;
     uint32_t draw_count_since_present;
     uint32_t total_draw_count;
     
     bool initialized;
     bool close_requested;
+    bool host_keys[SDL_NUM_SCANCODES];
+    SDL_SpinLock input_lock;
 } MIPS_VideoSystem;
 
 // Initialize the SDL2 + OpenGL ES 3.2 video subsystem
@@ -81,6 +87,8 @@ void mips_video_begin_frame(MIPS_VideoSystem *vid);
 
 // Swap buffers (present emulated frames)
 bool mips_video_present(MIPS_VideoSystem *vid);
+void mips_video_get_ctrl_state(MIPS_VideoSystem *vid,
+                               uint32_t *buttons, uint8_t *lx, uint8_t *ly);
 
 // Isolated direct render diagnostic check to bypass emulated lists
 void mips_video_draw_test_triangle(MIPS_VideoSystem *vid);
