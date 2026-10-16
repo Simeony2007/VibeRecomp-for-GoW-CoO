@@ -485,8 +485,31 @@ contêm a composição do tabuleiro, inclusive durante alternância de FBP e
 apresentações com apenas um novo draw. Os dumps guest continuam zerados; o
 processo foi fechado manualmente (`exit=0`) e encerrou sem CPU fault. Isso
 confirma a resolução do flicker recorrente neste teste, não que o 2D esteja
-completo ou que o GOW esteja compatível. Próxima prioridade: fidelidade e
-pixels remanescentes do 2048 e ampliar cobertura 2D GE.
+completo ou que o GOW esteja compatível.
+
+Para a fidelidade do 2048, os UVs de primitivas `through` estavam sendo
+encaminhados como coordenadas em texels, embora o shader GLES amostre UVs
+normalizadas. O renderer agora divide U/V pelas dimensões da textura carregada
+nesse modo; o caso não-through não muda. A regressão GLES verifica uma textura
+4x1 e confirma amostras distintas dos texels verde e azul, e o teste de
+framebuffer guest continua passando quando executado antes do draw que o
+sobrepõe. Os testes de ciclo de framebuffer, framebuffer, textura e 3D básico,
+além do build do interpretador, passaram. O teste genérico de pipeline GLES
+segue falhando somente porque espera fundo cinza 70-85, enquanto o clear atual
+é 31,31,36; o triângulo branco e o estado GL estão corretos. Esta alteração
+valida o caminho sintético de UV, mas ainda precisa de confirmação visual no
+2048 e não completa o GE 2D.
+
+Run234 foi confirmado visualmente pelo usuário: os vazamentos de pixels
+sumiram e o tabuleiro ficou quase correto. Comparado à captura do PPSSPP, o
+tabuleiro tem escala e posição relativas semelhantes, mas o fundo continua
+preto; faltam os textos de score/tempo/possibilidades e o número `2`, e várias
+células mostram conteúdo/colorização fragmentados em vez dos espaços vazios
+uniformes. O log mostra repetição de primitivas 2D texturizadas e nenhum CPU
+fault no encerramento. Portanto, UV `through` corrigido é um avanço validado,
+não fidelidade completa. Próximo passo: capturar e comparar uma célula e um
+sprite de texto (estado GE, UV e textura) para localizar a próxima diferença
+sem presumir se é atlas, alpha/blend ou ordenação.
 
 Run215 confirmou mudanca visual no 2048: a captura do usuario mostra uma area
 grande quadriculada em fundo preto, mas ainda nao o tabuleiro reconhecivel. O

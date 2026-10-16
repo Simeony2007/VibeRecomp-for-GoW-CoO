@@ -1416,6 +1416,8 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
     }
     int texture_requested = (ge->regs[0x1E] & 1) != 0;
     int texture_enabled = texture_requested && ge->vtype.tex_fmt != 0;
+    uint32_t texture_width = 1U << (ge->regs[CMD_TSIZE0] & 0xF);
+    uint32_t texture_height = 1U << ((ge->regs[CMD_TSIZE0] >> 8) & 0xF);
     if (vid->debug_ge_only) texture_enabled = 0;
     if (texture_requested && ge->vtype.tex_fmt == 0) {
         log_texture_error(
@@ -1534,6 +1536,9 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
             if (!ge->vtype.transform_bypass) {
                 u += ge_float24(ge->regs[0x4A]);
                 v_coord += ge_float24(ge->regs[0x4B]);
+            } else if (texture_enabled) {
+                u /= (float)texture_width;
+                v_coord /= (float)texture_height;
             }
         }
         vertices[v].u = u;
