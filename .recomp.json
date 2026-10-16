@@ -1,0 +1,17 @@
+{
+  "$schema": "https://recomp.fyi/schema/v1.json",
+  "game": "God of War: Chains of Olympus",
+  "wikidata": "Q1133346",
+  "system": "PSP",
+  "type": "recomp",
+  "original": { "region": "USA", "revision": "1.0" },
+  "project": "VibeRecomp for GoW CoO",
+  "status": "in-progress",
+  "targets": ["Linux", "ARM64 Architecture"],
+  "toolchain": "Recompiler-Interpreter Hibrid",
+  "approach": "Static/hybrid MIPS-to-ARM64 recompilation",
+  "maintainers": [{ "name": "Simeony", "link": "https://github.com/Simeony2007" }],
+  "links": [{ "label": "GitHub", "url": "https://github.com/Simeony2007/VibeRecomp-for-GoW-CoO" }],
+  "help": ["Graphics implementation", "Audio system implementation"],
+  "notes": "Building an experimental static/hybrid recompilation to bring God of War (PSP) closer to native ARM64 execution. Using ONLY AI!"
+}
