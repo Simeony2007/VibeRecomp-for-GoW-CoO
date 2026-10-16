@@ -33,19 +33,32 @@ typedef struct {
     GLint u_texture_environment_location;
     GLuint framebuffer_texture;
     GLuint ge_texture;
+    GLuint render_texture;
+    GLuint render_framebuffer;
+    GLuint render_depthbuffer;
     
     // Virtual PSP Display buffering
     uint32_t fbp; // Frame buffer pointer
     uint32_t fbw; // Frame buffer width (stride)
     uint32_t psm; // Pixel Storage Mode
     MIPS_CPU *display_cpu;
+    uint8_t *display_snapshot;
+    size_t display_snapshot_size;
     uint32_t display_topaddr;
     uint32_t display_stride;
     uint32_t display_format;
     uint32_t display_width;
     uint32_t display_height;
+    uint32_t display_snapshot_stride;
+    uint32_t display_snapshot_format;
+    uint32_t display_snapshot_width;
+    uint32_t display_snapshot_height;
+    bool display_snapshot_valid;
     bool debug_ge_only;
     bool frame_started;
+    bool framebuffer_dirty;
+    uint32_t draw_count_since_present;
+    uint32_t total_draw_count;
     
     bool initialized;
     bool close_requested;

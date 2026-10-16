@@ -32,7 +32,7 @@ Arquivos-chave: `main_v35.c`, `mips_hle.c/.h`, `mips_linker.c`,
 | CPU interpretada | Implementa um subconjunto amplo de Allegrex/MIPS, COP1 e VFPU; ainda ha operacoes nao suportadas e semanticas aproximadas. |
 | AOT | Tradutor estatico para um subconjunto inteiro/MIPS, com blocos especificos ao GOW e fallback para o interpretador; nao traduz VFPU de forma abrangente. |
 | HLE | I/O, threads/sincronizacao, memoria, UMD, display, controles, GE e audio possuem rotas; parte delas e simplificada e imports restantes podem cair em zero generico. |
-| GE / 2D | Maquina de estado parcial, leitura de display lists, vertices, primitivas, texturas diretas/CLUT e apresentacao GLES existem. UVs `through` foram corrigidos contra PPSSPP; listas GE agora acumulam ate o VBlank para uma apresentacao por frame. Nao e uma implementacao completa do GE PSP. |
+| GE / 2D | Maquina de estado parcial, leitura de display lists, vertices, primitivas, texturas diretas/CLUT e apresentacao GLES existem. UVs `through` foram corrigidos contra PPSSPP; cada draw GE inicia/marca o frame e a apresentacao nao troca frames vazios; listas GE acumulam ate o VBlank. Nao e uma implementacao completa do GE PSP. |
 | GE / 3D | Matrizes world/view/projection e conversao de vertices estao presentes; Ozone comprovou geometria visivel, mas distorcida. GOW ainda apresenta falhas visuais. |
 | Framebuffer | O renderer apresenta buffers guest e desenha GE diretamente na superficie GLES; draws nao sao rasterizados de volta ao framebuffer guest. |
 | Audio | Canais PCM SDL2 funcionam como modelo de saida; SAS mantem estado de vozes, mas a sintese/mixagem SAS real esta incompleta. |
@@ -228,9 +228,10 @@ parcial; o tratamento nao prova compatibilidade geral com todos os modulos.
 #### Display, input e GE
 
 `sceDisplaySetFrameBuf` atualiza o framebuffer que o renderer apresenta.
-`sceDisplayWaitVblankStart()` e `sceDisplayWaitVblankStartCB()` incrementam o
-contador e apresentam o frame; a espera ainda e imediata, sem sincronismo
-temporal PSP completo.
+`sceDisplayWaitVblankStart()` e `sceDisplayWaitVblankStartCB()` aguardam o
+proximo tick do timer monotônico (~60 Hz); o VBlank autonomo tambem apresenta
+frames pendentes. A temporizacao e a troca basica de framebuffer existem, mas
+nao ha entrega completa de interrupcoes ou wakeup/reschedule de threads PSP.
 
 `sceCtrlReadBufferPositive` e `sceCtrlPeekBufferPositive` copiam
 `g_ctrl_state` para o buffer guest e retornam uma amostra. O estado e global e,
@@ -255,7 +256,7 @@ codecs ou de SAS; ver secao 3.
 | `sceRtcGetCurrentTick` (`0x3F7AD767`) | Run195 registra chamadas via fallback; retorno deve ser tratado como nao implementado/valor generico ate provar handler atual. | Ozone fez 906 chamadas em um run historico; candidato de diagnostico, nao causa confirmada. |
 | `sceGeSetCallback` / `sceGeUnsetCallback` | Aceitam registro/operacao de forma simplificada. | Nao ha fila completa de interrupcoes/callbacks GE. |
 | `sceGeListSync` / `sceGeDrawSync` | Retornam como concluidas devido ao processamento sincrono local. | Nao modelam fila GPU assincrona PSP, stalls e sincronizacao completa. |
-| `sceDisplayWaitVblankStart` e relacionados | Atualizam/consultam um estado simplificado. | Nao fornecem temporizacao real nem cadencia de 60 Hz garantida. |
+| `sceDisplayWaitVblankStart` e relacionados | Esperam o proximo tick do timer monotônico (~60 Hz) e atualizam o contador. | Nao modelam entrega completa de interrupcao, wakeup/reschedule de threads ou cadencia exata do scheduler PSP. |
 | `sceCtrl*` de leitura | Copia estado global configurado. | Sem input fisico comprovado nesta analise. |
 | `sceAudiocodecCheckNeedMem` / `sceAudiocodecGetEDRAM` | Contexto/campos e valores esperados sao preenchidos de forma simplificada. | Nao decodifica streams de audio. |
 | SAS (`__sceSasCore` e relacionadas) | Mantem estado de vozes, flags e contagem de samples; o core pode zerar buffers. | Nao faz sintese PCM SAS equivalente ao PSP. |
@@ -416,11 +417,76 @@ GLES direcionada passou.
 Tambem foi corrigido o ciclo de apresentacao: antes cada `sceGeListEnQueue()`
 limpava e apresentava a superficie, embora jogos submetam varias listas antes
 do VBlank. O trace de comparacao do 2048 contem 1.267 enqueues, tornando essa
-cadencia um defeito concreto e compativel com a imagem intermitente; isso ainda
-nao prova que seja a unica causa do sintoma. As listas agora acumulam no mesmo
-frame e a apresentacao ocorre nas chamadas de espera de VBlank. Os testes GLES
-de textura, framebuffer/2D e transformacao 3D passaram; e necessario retestar
-visualmente 2048 e GOW para medir o efeito.
+cadencia um defeito concreto e compativel com a imagem intermitente. Depois,
+Run222-224 mostraram sintomas visuais em GOW/Ozone/2048. O caminho real
+`mips_video_draw_prim()` nao iniciava nem marcava um frame; alem disso o timer
+fazia swap mesmo quando nenhum frame novo estava pendente, limpando a imagem
+anterior e apresentando frames vazios. Agora o draw inicia o frame e o
+presentador so troca a superficie quando ha um draw ou framebuffer atualizado.
+O teste GLES foi fortalecido para exercitar o draw sem `begin_frame()` manual
+e verificar que um VBlank ocioso preserva o backbuffer. Os tres testes GLES
+direcionados e o build do interpretador passaram; a melhoria visual ainda
+precisa ser confirmada nos jogos.
+
+Nos Runs225-227 o usuario confirmou que o Ozone e o 2048 piscaram menos, mas
+nao pararam; o GOW continuou piscando. O log do GOW terminou por timeout e os
+outros dois foram fechados manualmente, todos sem fault. A inspeção do handler
+`SetFrameBuf(sync=0)` encontrou mais uma troca prematura: ele fazia swap host
+imediato antes de a lista GE seguinte concluir seus draws diretos para GLES.
+Agora o ponteiro guest muda imediatamente, mas a troca da janela e adiada ao
+VBlank, quando o draw GE pendente ja pode compor a imagem. Isso preserva a
+semantica de selecao de scanout sem apresentar uma superficie intermediaria
+incompleta. A build e os tres testes GLES passaram novamente.
+
+Nos Runs228-230, o usuario observou duas piscadas iniciais no GOW e depois
+estabilidade; no Ozone, flicker apenas no inicio e depois estabilidade; o 2048
+continuou piscando ate o timeout. GOW/Ozone foram fechados manualmente (exit
+0) e o 2048 encerrou pelo limite de 60 s (exit 124); todos fizeram shutdown
+sem CPU fault e registraram 460/339/1.310 enqueues GE. A mudança de ciclo de
+apresentação melhorou notavelmente GOW e Ozone; não reverter. O 2048 requer
+diagnóstico específico de framebuffer, textura/alpha e sequência de draws,
+pois a correção comum não removeu seu flicker.
+
+A analise dos 20 dumps do Run230 mostrou que todos os buffers guest RGBA são
+byte a byte zero, embora o log registre draws GE texturizados e o usuário tenha
+visto elementos na tela. Isto confirma que o caminho GE atual desenha em GLES
+sem escrever rasterização de volta à VRAM guest; os dumps guest não representam
+o backbuffer apresentado e não explicam sozinhos o flicker. Foi adicionado
+`MIPS_VIDEO_CAPTURE_PREFIX` para capturar até 20 backbuffers GLES imediatamente
+antes do swap, com FBP/FBW/formato e contagem de draws associados no log. A
+regressão verifica que a captura sincronizada contém o framebuffer esperado.
+Próximo passo: capturar 2048 novamente e comparar essas imagens com a seleção
+de buffer e os draws por apresentação antes de alterar o renderer.
+
+Run231 confirmou o mecanismo do flicker: as capturas GLES alternam entre o
+tabuleiro (50 draws e paleta com 10 cores) e quadros totalmente pretos (1 draw),
+inclusive mantendo o mesmo FBP. O início de cada frame limpava a superfície e
+recarregava a VRAM guest zerada, apagando os draws GLES anteriores antes de um
+draw parcial/transparente. O renderer agora usa um alvo GLES persistente,
+carrega o framebuffer guest quando `SetFrameBuf` o marca dirty e blita o alvo
+para a janela no VBlank; a regressão verifica a persistência de um draw 2D após
+apresentação. Os três testes GLES direcionados e o build do interpretador
+passaram. O usuário fechou manualmente o Run231 (exit 0); não houve CPU fault e
+o shutdown foi limpo. A validação visual da correção no 2048 ainda está
+pendente.
+
+No Run232, o usuário observou que as piscadas rápidas diminuíram, mas
+continuaram. As capturas mostraram que os quadros pretos reapareciam quando o
+jogo alternava entre `0x44000000` e `0x44088000`, cujos dumps guest são ambos
+zero. O renderer persistente ainda tratava qualquer troca de endereço como
+motivo para limpar e reimportar o framebuffer vazio. A importação passou a
+comparar conteúdo e metadados, ignorando troca de FBP quando a imagem guest é
+idêntica; a regressão cobre dois endereços com pixels equivalentes e preserva
+draw GE.
+
+Run233 confirmou a correção: o usuário relata que o flicker parou. As três
+primeiras capturas são quadros pretos de inicialização, mas as capturas #5-20
+contêm a composição do tabuleiro, inclusive durante alternância de FBP e
+apresentações com apenas um novo draw. Os dumps guest continuam zerados; o
+processo foi fechado manualmente (`exit=0`) e encerrou sem CPU fault. Isso
+confirma a resolução do flicker recorrente neste teste, não que o 2D esteja
+completo ou que o GOW esteja compatível. Próxima prioridade: fidelidade e
+pixels remanescentes do 2048 e ampliar cobertura 2D GE.
 
 Run215 confirmou mudanca visual no 2048: a captura do usuario mostra uma area
 grande quadriculada em fundo preto, mas ainda nao o tabuleiro reconhecivel. O
@@ -439,6 +505,49 @@ Run217 tambem terminou por timeout (exit 137), em `PURE_INTERPRETER`, com
 registro de CPU fault. **O comando usado nao incluiu `MIPS_TRACE_VBLANK=1`;
 isso foi omitido na instrucao anterior.** Portanto, Run217 nao permite dizer se
 o VBlank foi chamado nem se `mips_video_present()` trocou a janela.
+
+Run220 corrigiu o caminho do executavel e carregou
+`umd0/PSP_GAME/SYSDIR/EBOOT.BIN`; terminou pelo timeout (exit 137), nao por
+erro fatal registrado. Com `MIPS_TRACE_VBLANK=1`, o log nao tem nenhuma linha
+`[HLE Display VBlank]`. Ainda assim, registrou 278 chamadas
+`sceDisplaySetFrameBuf` e 281 submissões de lista GE. Portanto, durante os 45
+segundos capturados, o jogo/emulador nao chegou ao handler HLE de espera de
+VBlank. Como a unica rota atual a `mips_video_present()` e essa espera, nao
+houve swap pelo caminho normal de apresentacao nessa captura. Isso explica por
+que a janela pode ficar na cor inicial, mas nao estabelece se o jogo chega a
+VBlank numa execucao mais longa nem por que a espera ainda nao ocorreu.
+
+A comparacao direta do HLE de display com PPSSPP encontrou a divergencia
+estrutural: no core local, `sceDisplaySetMode` apenas salva modo/dimensoes,
+`sceDisplaySetFrameBuf` atualiza o endereco de scanout sem honrar `sync`, e
+nao ha evento/timer autonomo de VBlank; a troca GLES depende de o jogo chamar
+`sceDisplayWaitVblankStart*`. No PPSSPP, o VBlank e agendado pelo CoreTiming,
+`sceDisplaySetMode` espera um VBlank e `sceDisplaySetFramebuf` distingue
+buffer imediato de buffer latched para o proximo VBlank. Assim, o run confirma
+que a apresentacao atual podia nunca ocorrer durante uma sequencia de draws
+que nao chegava ao wait. Run221 foi um smoke test de 8 segundos depois da
+implementacao: terminou por timeout (exit 124), mas o dispatcher, renderer e
+audio fizeram shutdown sem CPU fault. O trace registrou VBlank autonomo (#1,
+#3, #5 e #60), a espera feita por `sceDisplaySetMode` (contador 96),
+`SetFrameBuf` com `sync=1` e alternancia repetida de buffers com `sync=0`,
+alem de submissões GE. Isso confirma que os novos caminhos sao executados
+pelo GOW; nao confirma que o frame tenha pixels corretos nem que a janela tenha
+apresentado a imagem. Como o callback roda a cada 1024 dispatches, periodos
+perdidos podem ser agrupados; o trace tambem pode omitir esses contadores
+porque so registra os primeiros eventos e multiplos exatos de 60. O proximo
+trabalho e validar a apresentacao visual e capturar o backbuffer GLES, nao
+alterar a transformacao do draw #11 por tentativa.
+
+Os 20 dumps de display do Run220 (480x272, stride 512, formato 3, alternando
+`0x04000000`/`0x0408C000`) contem somente bytes zero e sao identicos. Isso
+combina com a arquitetura atual, que desenha primitivas GE diretamente na
+superficie GLES e nao rasteriza pixels de volta na VRAM guest; nao prova que o
+backbuffer GLES esteja vazio. O dump do draw #11 confirma textura CLUT8 com
+indices e paleta nao vazios, mas seus vertices resultam em NDC X≈374–396,
+fora da tela. `tools/check_ge_coordinates.py` reproduziu corretamente as
+etapas salvas; esse teste valida a conta local, nao uma captura executada no
+PPSSPP. O draw #11 e um defeito/estado suspeito independente, ainda sem prova
+de que seja a causa unica do sintoma visual.
 
 ### Auditoria dirigida do core e GE contra as referencias locais
 
@@ -465,17 +574,24 @@ Defeitos verificaveis no codigo atual:
 5. O GE desenha direto no GLES, nao na memoria eDRAM/framebuffer PSP. FBP/FBW
    nao recebem os pixels dos draws, entao framebuffer feedback, transferencias
    e readback de superficies nao podem funcionar como no hardware.
-6. A espera VBlank atual e imediata: conta e faz swap, mas nao espera timing,
-   nao modela a interrupcao/wakeup do PSP nem reschedule como PPSSPP.
+6. O VBlank agora usa timer monotônico (~60 Hz), `sceDisplaySetMode` espera
+   pelo próximo VBlank e `SetFrameBuf` diferencia `sync=0` (imediato) de
+   `sync=1` (latched). Run221 confirma esses caminhos em execução no GOW, mas
+   não valida imagem visível. O callback é consultado a cada 1024 dispatches;
+   períodos perdidos são agrupados e não há entrega completa de interrupção,
+   wakeup/reschedule de threads como no PPSSPP.
 
-O Run216/217 tem um problema adicional mensurado: o draw #11 transformado
+Os Run216/220 tem um problema adicional mensurado: o draw #11 transformado
 fica fora do NDC esperado (X aproximadamente 374-396 no estado capturado).
 Isso e compativel com vertices invisiveis, mas a cadeia precisa ser comparada
 com PPSSPP no mesmo estado; o draw usa posicao float, portanto nao e explicado
-pelo erro S8/S16 acima. Como o Run217 nao habilitou o trace VBlank, o cinza
-observado ainda nao distingue ausencia de swap de swap de um frame sem pixels
-visiveis. Os logs nao sustentam atribuir esse sintoma ao audio ou a uma falha
-de CPU.
+pelo erro S8/S16 acima. No Run220, o trace habilitado nao registrou espera
+VBlank, e portanto nao ocorreu swap pelo caminho normal durante a captura.
+O bloqueio de apresentacao esta ligado a uma lacuna confirmada no HLE de
+display: falta VBlank autonomo e `SetMode`/`SetFrameBuf` nao seguem a
+sincronizacao do PPSSPP. Ainda falta medir a contribuicao de cada divergencia;
+o estado fora de tela continua sendo um problema de geometria separado. Os
+logs nao sustentam atribuir esse sintoma ao audio ou a uma falha de CPU.
 
 ### 2.5 Blending
 
@@ -657,6 +773,8 @@ correcao no interpretador nao garante correcao no AOT. Validacao necessaria:
 | Run194 (Cave History) / Run196-200 (2048) | Runs recentes nao chegaram a draws GE; 2048 leu `take.png` sem erro de I/O registrado; logs posteriores apontaram caminho de `abort()` em PNG e spin apos self-stop como investigacao. | Nao sao testes validos de renderer; a falha da homebrew 2048 esta no fluxo de inicializacao/PNG/HLE/CPU, mas a instrucao-raiz ainda exige conclusao. |
 | Run212/214 (2048, PURE_INTERPRETER) | A correcao de `LWL/LWR/SWL/SWR` fez as tres scanlines capturadas coincidirem com o PNG de referencia; Run214 chegou a pelo menos 24.576 draws GE e encerrou com status zero. | A divergencia do PNG estava nas semanticas de merge das instrucoes Allegrex, nao em GE, audio ou leitura do arquivo. A validacao nao prova cobertura completa de todos os formatos/fluxos PNG. |
 | Run213 (GOW, PURE_INTERPRETER, apos a correcao) | 20 buffers guest de display capturados continuam zerados; draw #11 ainda reporta X/NDC em torno de 374–396, fora da faixa usual. O log encerra renderer e audio sem erro fatal. | A correcao do CPU nao resolveu a imagem do GOW. O bloqueio observado agora e separado: framebuffer guest vazio e/ou estado/transformacao GE; requer comparacao do mesmo frame com PPSSPP. |
+| Run222-224 (GOW, Ozone, 2048, PURE_INTERPRETER) | Todos terminaram por timeout (exit 124), shutdown normal e `faults=0`; registraram 764/524/1.302 enqueues GE. O usuario viu GOW com retangulo preto e restante piscando branco, Ozone com 3D distorcido piscando/linhas horizontais, e 2048 com tabuleiro visivel, uma casa branca, pixels falhos e flicker. | Os tres chegam ao renderer; a semelhanca do flicker justificou corrigir o ciclo de draw/present. A correção está implementada e tem regressão GLES, mas os sintomas específicos de geometria/linhas/pixels ainda precisam de nova validação visual e podem ser problemas GE independentes. |
+| Run225-227 (após marcar draw e evitar VBlanks vazios) | GOW terminou pelo limite de 120 s e continuou piscando; Ozone e 2048 foram fechados manualmente e o usuário notou menos flicker, ainda presente. Os três mantêm atividade GE, sem faults. | A primeira correção melhorou parcialmente Ozone/2048, mas não resolveu GOW. Foi identificada e corrigida outra causa comum: o HLE fazia swap imediato ao `SetFrameBuf(sync=0)` antes dos draws GE subsequentes; agora o swap host é adiado ao VBlank. Próxima execução deve validar especificamente se isso elimina o flash intermediário. |
 | CompareGE-20261015-174904 (2048, Ozone, PSPRev 1.5) | Os 20 dumps guest de 2048 e Ozone e os dois validos de PSPRev contem apenas zeros. O video de 2048 mostra o quadro 4x4 somente em poucos frames, no restante a janela fica preta. O draw #11 de 2048 mapeia vertices do quad para pixels (23,43) e (34,50), mas a textura capturada e um atlas cinza. O screenshot Ozone mostra geometria 3D ampliada/cortada e acinzentada; no draw #10, os quatro primeiros vertices ficam dentro do NDC, e a textura resolvida e um padrao preto/branco. PSPRev configurou framebuffer 0x04000000/stride 512/formato 5551, mas nao registrou draws GE e seus dumps ficaram zerados. | Os logs confirmam sintomas graficos, nao uma causa comum. Os dumps sao da VRAM guest e nao do backbuffer GLES; como o renderer desenha GE diretamente na superficie GLES, zeros neles nao provam que nao houve draw. O quad capturado do 2048 nao tem erro obvio de conversao de coordenadas; a causa da intermitencia ainda precisa ser isolada. PSPRev parece nao ter chegado a um draw GE utilizavel no periodo capturado. |
 
 Run192 tem mais detalhe: a textura do draw #11 e CLUT8 swizzled 128x256,
@@ -696,20 +814,23 @@ existencia prove que a causa foi corrigida.
 
 ## 7. Prioridade tecnica recomendada
 
-1. Capturar simultaneamente framebuffer guest e backbuffer GLES do GOW no mesmo
-   frame; identificar FBP/FBW/formato e descobrir onde os pixels desaparecem.
-2. Comparar coordenadas/estado do draw #11 com PPSSPP e localizar o estagio
+1. Expandir a cobertura GE 2D e investigar fidelidade/pixels ainda incorretos
+   no 2048; o flicker recorrente foi validado como resolvido no Run233.
+2. Capturar simultaneamente janela/backbuffer GLES, framebuffer guest e estado
+   GE do GOW no mesmo frame; identificar FBP/FBW/formato e onde os pixels
+   desaparecem.
+3. Comparar coordenadas/estado do draw #11 com PPSSPP e localizar o estagio
    matematico onde X/NDC sai da faixa esperada antes de alterar transformacoes.
-3. Investigar o estado de blend FIXA/FIXB e outros estados GE somente com caso
+4. Investigar o estado de blend FIXA/FIXB e outros estados GE somente com caso
    reproduzivel e comparacao de pixels.
-4. Validar as instrucoes Allegrex/VFPU realmente usadas pelo GOW com testes
+5. Validar as instrucoes Allegrex/VFPU realmente usadas pelo GOW com testes
    diferenciais, incluindo a cobertura AOT/hibrida apos a correcao do
    interpretador.
-5. Usar PSP Revolution e PSP Keys Test como testes diagnosticos adicionais,
+6. Usar PSP Revolution e PSP Keys Test como testes diagnosticos adicionais,
    sem substituir o GOW como objetivo nem confundir inicializacao com render.
-6. Completar HLE por contagem de imports chamados; priorizar tempo, cache/GE,
+7. Completar HLE por contagem de imports chamados; priorizar tempo, cache/GE,
    SAS e sincronismo conforme evidencias, evitando stubs de sucesso.
-7. Medir desempenho e validar no ARM64/R36S somente depois de consistencia
+8. Medir desempenho e validar no ARM64/R36S somente depois de consistencia
    funcional; build WSL/x86-64 nao prova build/execucao nativa ARM64.
 
 ## 8. Interfaces publicas de referencia

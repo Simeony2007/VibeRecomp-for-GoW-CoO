@@ -9,6 +9,7 @@
  * This is the heart of the execution loop in our AOT engine.
  */
 typedef void (*AOTBlockFunction)(MIPS_CPU *cpu);
+typedef void (*MIPS_DispatcherService)(MIPS_CPU *cpu);
 
 /* Returns true for values that are known data sentinels, never code targets. */
 bool mips_aot_indirect_target_is_data(uint32_t target);
@@ -41,6 +42,7 @@ typedef struct {
 
     // A fallback function pointer pointing to the Interpreter's entry point
     AOTBlockFunction fallback_interpreter;
+    MIPS_DispatcherService service_callback;
 } MIPS_Dispatcher;
 
 int mips_dispatcher_init(MIPS_Dispatcher *disp);

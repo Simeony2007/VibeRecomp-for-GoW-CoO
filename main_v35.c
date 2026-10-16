@@ -22,6 +22,7 @@
 #include <stdbool.h>
 #include <sys/time.h>
 #include <time.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -262,6 +263,10 @@ static uint32_t emu_thread_entry __attribute__ ((unused)) = 0;
 static int32_t file_async_results[0x20] = {0};
 static uint32_t vblank_counter = 0;
 static uint64_t vblank_wait_count = 0;
+static uint64_t next_vblank_ns = 0;
+static bool vblank_clock_initialized = false;
+static uint32_t vblank_wait_syscall = 0;
+static uint32_t vblank_wait_pc = 0;
 
 typedef struct {
     int id;
@@ -352,6 +357,8 @@ static HLE_DisplayState g_display = {
     .format = 0,
     .configured = false
 };
+static HLE_DisplayState g_latched_display;
+static bool g_display_framebuffer_latched = false;
 
 typedef struct {
     int channel_id;
@@ -559,6 +566,82 @@ static void resolve_case_insensitive(char *resolved, const char *path) {
     strcat(resolved, p);
 }
 
+static bool hle_monotonic_time_ns(uint64_t *time_ns) {
+    struct timespec now;
+    if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
+        perror("[HLE Display] clock_gettime(CLOCK_MONOTONIC)");
+        return false;
+    }
+    *time_ns = (uint64_t)now.tv_sec * 1000000000ULL +
+               (uint64_t)now.tv_nsec;
+    return true;
+}
+
+static void hle_display_apply_framebuffer(MIPS_CPU *cpu,
+                                          const HLE_DisplayState *state) {
+    g_display.topaddr = state->topaddr;
+    g_display.stride = state->stride;
+    g_display.format = state->format;
+    g_display.sync = state->sync;
+    g_display.configured = state->configured;
+    if (kernel.video_system != NULL && state->configured) {
+        uint32_t width = g_display.disp_width != 0 ? g_display.disp_width : 480;
+        uint32_t height = g_display.disp_height != 0 ? g_display.disp_height : 272;
+        mips_video_set_framebuffer((MIPS_VideoSystem *)kernel.video_system,
+                                   cpu, state->topaddr, state->stride,
+                                   state->format, width, height);
+    }
+}
+
+static void hle_display_service_vblank(MIPS_CPU *cpu) {
+    const uint64_t vblank_period_ns = 16666667ULL;
+    uint64_t now_ns;
+    if (!hle_monotonic_time_ns(&now_ns)) return;
+
+    if (!vblank_clock_initialized) {
+        next_vblank_ns = now_ns + vblank_period_ns;
+        vblank_clock_initialized = true;
+        return;
+    }
+    if (now_ns < next_vblank_ns) return;
+
+    uint64_t elapsed_vblanks =
+        (now_ns - next_vblank_ns) / vblank_period_ns + 1;
+    next_vblank_ns += elapsed_vblanks * vblank_period_ns;
+    vblank_counter += (uint32_t)elapsed_vblanks;
+    vblank_wait_count += elapsed_vblanks;
+    if (g_display_framebuffer_latched) {
+        HLE_DisplayState latched = g_latched_display;
+        g_display_framebuffer_latched = false;
+        hle_display_apply_framebuffer(cpu, &latched);
+    }
+
+    MIPS_VideoSystem *video = (MIPS_VideoSystem *)kernel.video_system;
+    bool frame_pending = video != NULL &&
+                         (video->frame_started || video->framebuffer_dirty);
+    bool close_requested = video != NULL && mips_video_present(video);
+    if (close_requested && cpu != NULL) {
+        cpu->exit_requested = true;
+    }
+
+    static int trace_enabled = -1;
+    if (trace_enabled < 0) {
+        const char *value = getenv("MIPS_TRACE_VBLANK");
+        trace_enabled = value != NULL && value[0] != '\0' &&
+                        strcmp(value, "0") != 0;
+    }
+    if (trace_enabled &&
+        (vblank_wait_count <= 8 || vblank_wait_count % 60 == 0)) {
+        printf("[HLE Display VBlank] #%llu source=%s syscall=0x%05X "
+               "pc=0x%08X video=%u frame_pending=%u close=%u counter=%u\n",
+               (unsigned long long)vblank_wait_count,
+               vblank_wait_syscall != 0 ? "wait" : "timer",
+               vblank_wait_syscall, vblank_wait_pc, video != NULL,
+               frame_pending, close_requested, vblank_counter);
+        fflush(stdout);
+    }
+}
+
 static void hle_display_wait_vblank(MIPS_CPU *cpu, uint32_t syscall_id) {
     static int trace_enabled = -1;
     if (trace_enabled < 0) {
@@ -567,20 +650,36 @@ static void hle_display_wait_vblank(MIPS_CPU *cpu, uint32_t syscall_id) {
                         strcmp(value, "0") != 0;
     }
 
-    vblank_counter++;
-    uint64_t wait_number = ++vblank_wait_count;
-    MIPS_VideoSystem *video = (MIPS_VideoSystem *)kernel.video_system;
-    bool frame_pending = video != NULL && video->frame_started;
-    bool close_requested = video != NULL && mips_video_present(video);
-    if (close_requested) {
-        cpu->exit_requested = true;
-    }
+    uint32_t start_counter = vblank_counter;
+    if (cpu == NULL) return;
+    vblank_wait_syscall = syscall_id;
+    vblank_wait_pc = cpu != NULL ? cpu->pc : 0;
+    while (!cpu->exit_requested) {
+        hle_display_service_vblank(cpu);
+        if (vblank_counter != start_counter) break;
 
+        uint64_t now_ns;
+        if (!hle_monotonic_time_ns(&now_ns)) break;
+        uint64_t remaining_ns = next_vblank_ns > now_ns
+            ? next_vblank_ns - now_ns : 1000000ULL;
+        if (remaining_ns > 2000000ULL) remaining_ns = 2000000ULL;
+        struct timespec delay = {
+            .tv_sec = (time_t)(remaining_ns / 1000000000ULL),
+            .tv_nsec = (long)(remaining_ns % 1000000000ULL)
+        };
+        while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {
+        }
+    }
+    vblank_wait_syscall = 0;
+    vblank_wait_pc = 0;
+
+    static uint64_t traced_wait_count;
+    uint64_t wait_number = ++traced_wait_count;
     if (trace_enabled && (wait_number <= 8 || wait_number % 60 == 0)) {
-        printf("[HLE Display VBlank] #%llu syscall=0x%05X pc=0x%08X "
-               "video=%u frame_pending=%u close=%u counter=%u\n",
-               (unsigned long long)wait_number, syscall_id, cpu->pc,
-               video != NULL, frame_pending, close_requested, vblank_counter);
+        printf("[HLE Display Wait] #%llu syscall=0x%05X pc=0x%08X "
+               "counter=%u\n",
+               (unsigned long long)wait_number, syscall_id,
+               cpu != NULL ? cpu->pc : 0, vblank_counter);
         fflush(stdout);
     }
 }
@@ -783,25 +882,37 @@ static void hle_syscall_impl(MIPS_CPU *cpu) {
         g_display.disp_height = cpu->gpr[0x06];
         printf("[HLE Display] sceDisplaySetMode(mode=%u, w=%u, h=%u)\n",
                g_display.mode, g_display.disp_width, g_display.disp_height);
+        hle_display_wait_vblank(cpu, syscall_id);
         cpu->gpr[0x02] = 0;
         cpu->pc = cpu->gpr[0x1F];
         cpu->next_pc = cpu->pc + 4;
         return;
     }
     if (syscall_id == 0x60002) { // sceDisplaySetFrameBuf(topaddr, stride, pixelformat, sync)
-        g_display.topaddr = cpu->gpr[0x04];
-        g_display.stride  = cpu->gpr[0x05];
-        g_display.format  = cpu->gpr[0x06];
-        g_display.sync    = cpu->gpr[0x07];
-        g_display.configured = true;
+        HLE_DisplayState requested = g_display;
+        requested.topaddr = cpu->gpr[0x04];
+        requested.stride  = cpu->gpr[0x05];
+        requested.format  = cpu->gpr[0x06];
+        requested.sync    = cpu->gpr[0x07];
+        requested.configured = true;
         printf("[HLE Display] sceDisplaySetFrameBuf(topaddr=0x%08X, stride=%u, format=%u, sync=%u)\n",
-               g_display.topaddr, g_display.stride, g_display.format, g_display.sync);
-        if (kernel.video_system != NULL) {
-            uint32_t width = g_display.disp_width != 0 ? g_display.disp_width : 480;
-            uint32_t height = g_display.disp_height != 0 ? g_display.disp_height : 272;
-            mips_video_set_framebuffer((MIPS_VideoSystem *)kernel.video_system, cpu,
-                                       g_display.topaddr, g_display.stride,
-                                       g_display.format, width, height);
+               requested.topaddr, requested.stride, requested.format,
+               requested.sync);
+        if (requested.sync == 0) {
+            g_display_framebuffer_latched = false;
+            hle_display_apply_framebuffer(cpu, &requested);
+            /* GE pixels are drawn to GLES; defer the host swap until VBlank. */
+        } else if (requested.sync == 1) {
+            g_latched_display = requested;
+            g_display_framebuffer_latched = true;
+        } else {
+            fprintf(stderr,
+                    "[HLE Display Error] Invalid sceDisplaySetFrameBuf sync=%u.\n",
+                    requested.sync);
+            cpu->gpr[0x02] = (uint32_t)-1;
+            cpu->pc = cpu->gpr[0x1F];
+            cpu->next_pc = cpu->pc + 4;
+            return;
         }
         cpu->gpr[0x02] = 0;
         cpu->pc = cpu->gpr[0x1F];
@@ -1647,6 +1758,7 @@ int main(int argc, char **argv) {
     MIPS_Dispatcher dispatcher;
     mips_dispatcher_init(&dispatcher);
     dispatcher.fallback_interpreter = interpreter_step;
+    dispatcher.service_callback = hle_display_service_vblank;
 
     uint32_t entry_point = 0x08804000;
     int load_ret = load_eboot(&cpu, load_path, &entry_point);

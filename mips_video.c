@@ -261,13 +261,57 @@ int mips_video_init(MIPS_VideoSystem *vid) {
     glGenBuffers(1, &vid->vbo);
     glGenTextures(1, &vid->framebuffer_texture);
     glGenTextures(1, &vid->ge_texture);
+    glGenTextures(1, &vid->render_texture);
+    glGenFramebuffers(1, &vid->render_framebuffer);
+    glGenRenderbuffers(1, &vid->render_depthbuffer);
     if (vid->vao == 0 || vid->vbo == 0 || vid->framebuffer_texture == 0 ||
-        vid->ge_texture == 0) {
+        vid->ge_texture == 0 || vid->render_texture == 0 ||
+        vid->render_framebuffer == 0 || vid->render_depthbuffer == 0) {
         fprintf(stderr, "[GLES Error] Could not allocate video buffers or framebuffer texture.\n");
+        if (vid->render_depthbuffer != 0) {
+            glDeleteRenderbuffers(1, &vid->render_depthbuffer);
+        }
+        if (vid->render_framebuffer != 0) {
+            glDeleteFramebuffers(1, &vid->render_framebuffer);
+        }
+        if (vid->render_texture != 0) glDeleteTextures(1, &vid->render_texture);
         if (vid->ge_texture != 0) glDeleteTextures(1, &vid->ge_texture);
         if (vid->framebuffer_texture != 0) glDeleteTextures(1, &vid->framebuffer_texture);
         if (vid->vbo != 0) glDeleteBuffers(1, &vid->vbo);
         if (vid->vao != 0) glDeleteVertexArrays(1, &vid->vao);
+        glDeleteProgram(vid->program);
+        SDL_GL_DeleteContext(vid->gl_context);
+        SDL_DestroyWindow(vid->window);
+        SDL_QuitSubSystem(SDL_INIT_VIDEO);
+        memset(vid, 0, sizeof(*vid));
+        return -6;
+    }
+
+    glBindTexture(GL_TEXTURE_2D, vid->render_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 960, 544, 0, GL_RGBA,
+                 GL_UNSIGNED_BYTE, NULL);
+    glBindFramebuffer(GL_FRAMEBUFFER, vid->render_framebuffer);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                           GL_TEXTURE_2D, vid->render_texture, 0);
+    glBindRenderbuffer(GL_RENDERBUFFER, vid->render_depthbuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 960, 544);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                              GL_RENDERBUFFER, vid->render_depthbuffer);
+    GLenum framebuffer_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (framebuffer_status != GL_FRAMEBUFFER_COMPLETE) {
+        fprintf(stderr,
+                "[GLES Error] Persistent render target is incomplete "
+                "(status=0x%04X).\n",
+                framebuffer_status);
+        glDeleteRenderbuffers(1, &vid->render_depthbuffer);
+        glDeleteFramebuffers(1, &vid->render_framebuffer);
+        glDeleteTextures(1, &vid->render_texture);
+        glDeleteTextures(1, &vid->ge_texture);
+        glDeleteTextures(1, &vid->framebuffer_texture);
+        glDeleteBuffers(1, &vid->vbo);
+        glDeleteVertexArrays(1, &vid->vao);
         glDeleteProgram(vid->program);
         SDL_GL_DeleteContext(vid->gl_context);
         SDL_DestroyWindow(vid->window);
@@ -294,6 +338,7 @@ int mips_video_init(MIPS_VideoSystem *vid) {
     glBindVertexArray(0);
     
     // Viewport and physical state initialization
+    glBindFramebuffer(GL_FRAMEBUFFER, vid->render_framebuffer);
     glViewport(0, 0, 960, 544);
     
     // Test direct errors
@@ -302,7 +347,11 @@ int mips_video_init(MIPS_VideoSystem *vid) {
     glClearColor(0.12f, 0.12f, 0.14f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     vid->initialized = true;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, 960, 544);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     SDL_GL_SwapWindow(vid->window);
+    glBindFramebuffer(GL_FRAMEBUFFER, vid->render_framebuffer);
     printf("[Video GLES] OpenGL ES 3.20 context initialized.\n");
     return 0;
 }
@@ -314,7 +363,14 @@ void mips_video_free(MIPS_VideoSystem *vid) {
     glDeleteVertexArrays(1, &vid->vao);
     glDeleteTextures(1, &vid->framebuffer_texture);
     glDeleteTextures(1, &vid->ge_texture);
+    glDeleteTextures(1, &vid->render_texture);
+    glDeleteFramebuffers(1, &vid->render_framebuffer);
+    glDeleteRenderbuffers(1, &vid->render_depthbuffer);
     glDeleteProgram(vid->program);
+    free(vid->display_snapshot);
+    vid->display_snapshot = NULL;
+    vid->display_snapshot_size = 0;
+    vid->display_snapshot_valid = false;
     
     SDL_GL_DeleteContext(vid->gl_context);
     SDL_DestroyWindow(vid->window);
@@ -400,6 +456,109 @@ static void dump_display_framebuffer(MIPS_CPU *cpu, uint32_t topaddr,
             dump_number, topaddr, stride, format, width, height, size, path);
 }
 
+static void capture_present_backbuffer(MIPS_VideoSystem *vid) {
+    static int initialized;
+    static char prefix[512];
+    static uint32_t capture_count;
+    enum { MAX_PRESENT_CAPTURES = 20 };
+
+    if (!initialized) {
+        initialized = 1;
+        const char *setting = getenv("MIPS_VIDEO_CAPTURE_PREFIX");
+        if (setting != NULL && setting[0] != '\0') {
+            int length = snprintf(prefix, sizeof(prefix), "%s", setting);
+            if (length < 0 || (size_t)length >= sizeof(prefix)) {
+                prefix[0] = '\0';
+                fprintf(stderr,
+                        "[Video Capture Error] MIPS_VIDEO_CAPTURE_PREFIX "
+                        "is too long.\n");
+            }
+        }
+    }
+    if (prefix[0] == '\0' || capture_count >= MAX_PRESENT_CAPTURES) return;
+
+    int width = 0;
+    int height = 0;
+    SDL_GL_GetDrawableSize(vid->window, &width, &height);
+    if (width <= 0 || height <= 0 ||
+        (size_t)width > SIZE_MAX / 4 / (size_t)height) {
+        fprintf(stderr,
+                "[Video Capture Error] Invalid drawable dimensions %dx%d.\n",
+                width, height);
+        return;
+    }
+    size_t row_bytes = (size_t)width * 4;
+    size_t image_size = row_bytes * (size_t)height;
+    uint8_t *pixels = (uint8_t *)malloc(image_size);
+    uint8_t *row = (uint8_t *)malloc(row_bytes);
+    if (pixels == NULL || row == NULL) {
+        free(pixels);
+        free(row);
+        fprintf(stderr,
+                "[Video Capture Error] Could not allocate %zu-byte "
+                "backbuffer capture.\n",
+                image_size);
+        return;
+    }
+
+    GLint previous_pack_alignment = 4;
+    glGetIntegerv(GL_PACK_ALIGNMENT, &previous_pack_alignment);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadBuffer(GL_BACK);
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    GLenum read_error = glGetError();
+    glPixelStorei(GL_PACK_ALIGNMENT, previous_pack_alignment);
+    if (read_error != GL_NO_ERROR) {
+        free(pixels);
+        free(row);
+        fprintf(stderr,
+                "[Video Capture Error] glReadPixels failed with 0x%04X.\n",
+                read_error);
+        return;
+    }
+
+    for (int y = 0; y < height / 2; y++) {
+        uint8_t *top = pixels + (size_t)y * row_bytes;
+        uint8_t *bottom = pixels + (size_t)(height - 1 - y) * row_bytes;
+        memcpy(row, top, row_bytes);
+        memcpy(top, bottom, row_bytes);
+        memcpy(bottom, row, row_bytes);
+    }
+
+    uint32_t capture_number = capture_count + 1;
+    char path[640];
+    int length = snprintf(path, sizeof(path), "%s_present%02u.rgba",
+                          prefix, capture_number);
+    if (length < 0 || (size_t)length >= sizeof(path)) {
+        free(pixels);
+        free(row);
+        fprintf(stderr, "[Video Capture Error] Output path is too long.\n");
+        return;
+    }
+    FILE *file = fopen(path, "wb");
+    if (file == NULL) {
+        free(pixels);
+        free(row);
+        fprintf(stderr, "[Video Capture Error] Cannot open '%s'.\n", path);
+        return;
+    }
+    size_t written = fwrite(pixels, 1, image_size, file);
+    int close_result = fclose(file);
+    free(pixels);
+    free(row);
+    if (written != image_size || close_result != 0) {
+        fprintf(stderr, "[Video Capture Error] Failed writing '%s'.\n", path);
+        return;
+    }
+    capture_count = capture_number;
+    fprintf(stderr,
+            "[Video Capture] #%u size=%dx%d fbp=%08X fbw=%u format=%u "
+            "draws=%u total_draws=%u file=%s\n",
+            capture_number, width, height, vid->display_topaddr,
+            vid->display_stride, vid->display_format,
+            vid->draw_count_since_present, vid->total_draw_count, path);
+}
+
 void mips_video_set_framebuffer(MIPS_VideoSystem *vid, MIPS_CPU *cpu,
                                 uint32_t topaddr, uint32_t stride,
                                 uint32_t format, uint32_t width,
@@ -412,21 +571,25 @@ void mips_video_set_framebuffer(MIPS_VideoSystem *vid, MIPS_CPU *cpu,
     vid->display_format = format;
     vid->display_width = width;
     vid->display_height = height;
+    vid->framebuffer_dirty = true;
 }
 
 void mips_video_begin_frame(MIPS_VideoSystem *vid) {
     if (vid == NULL || !vid->initialized) return;
     if (vid->frame_started) return;
 
+    glBindFramebuffer(GL_FRAMEBUFFER, vid->render_framebuffer);
     vid->frame_started = true;
     glViewport(0, 0, 960, 544);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    /* Preserve GE-only pixels across VBlanks until scanout changes. */
+    if (!vid->framebuffer_dirty) return;
+
     if (vid->debug_ge_only) {
         glClearColor(0.30f, 0.30f, 0.30f, 1.0f);
-    } else {
-        glClearColor(0.12f, 0.12f, 0.14f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        return;
     }
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    if (vid->debug_ge_only) return;
     if (vid->display_cpu == NULL || vid->display_width == 0 ||
         vid->display_height == 0 || vid->display_stride < vid->display_width) {
         return;
@@ -458,13 +621,34 @@ void mips_video_begin_frame(MIPS_VideoSystem *vid) {
         return;
     }
 
+    bool framebuffer_changed = !vid->display_snapshot_valid ||
+        vid->display_snapshot_size != source_size ||
+        vid->display_snapshot_stride != vid->display_stride ||
+        vid->display_snapshot_format != vid->display_format ||
+        vid->display_snapshot_width != vid->display_width ||
+        vid->display_snapshot_height != vid->display_height ||
+        memcmp(vid->display_snapshot, source, source_size) != 0;
+    if (!framebuffer_changed) return;
+
+    uint8_t *snapshot = (uint8_t *)malloc(source_size);
+    if (snapshot == NULL) {
+        fprintf(stderr,
+                "[HLE Display Error] Could not allocate %zu-byte "
+                "framebuffer snapshot.\n",
+                source_size);
+        return;
+    }
+    memcpy(snapshot, source, source_size);
+
     size_t pixel_count = (size_t)vid->display_width * vid->display_height;
     if (pixel_count > SIZE_MAX / 4) {
+        free(snapshot);
         fprintf(stderr, "[HLE Display Error] Framebuffer dimensions overflow host size.\n");
         return;
     }
     uint8_t *rgba = (uint8_t *)malloc(pixel_count * 4);
     if (rgba == NULL) {
+        free(snapshot);
         fprintf(stderr, "[HLE Display Error] Could not allocate framebuffer upload buffer.\n");
         return;
     }
@@ -475,6 +659,7 @@ void mips_video_begin_frame(MIPS_VideoSystem *vid) {
                     row + (size_t)x * bytes_per_pixel, vid->display_format,
                     rgba + ((size_t)y * vid->display_width + x) * 4)) {
                 free(rgba);
+                free(snapshot);
                 fprintf(stderr, "[HLE Display Error] Could not decode PSP framebuffer pixel format.\n");
                 return;
             }
@@ -502,6 +687,8 @@ void mips_video_begin_frame(MIPS_VideoSystem *vid) {
         1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1
     };
     glUseProgram(vid->program);
+    glDisable(GL_BLEND);
+    glDisable(GL_DEPTH_TEST);
     glUniform1i(vid->u_use_framebuffer_location, 1);
     glUniform1i(vid->u_framebuffer_location, 0);
     glUniform1i(vid->u_use_texture_location, 0);
@@ -512,6 +699,14 @@ void mips_video_begin_frame(MIPS_VideoSystem *vid) {
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     glBindVertexArray(0);
     glUseProgram(0);
+    free(vid->display_snapshot);
+    vid->display_snapshot = snapshot;
+    vid->display_snapshot_size = source_size;
+    vid->display_snapshot_stride = vid->display_stride;
+    vid->display_snapshot_format = vid->display_format;
+    vid->display_snapshot_width = vid->display_width;
+    vid->display_snapshot_height = vid->display_height;
+    vid->display_snapshot_valid = true;
 }
 
 static float ge_float24(uint32_t value) {
@@ -1583,6 +1778,8 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
         free(vertices);
     }
 
+    mips_video_begin_frame(vid);
+
     // Activate GLES Shaders [7.3]
     glUseProgram(vid->program);
     glUniform1i(vid->u_use_framebuffer_location, 0);
@@ -1724,6 +1921,12 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
     // Hardware accelerated Draw Call [10.5]
     glDrawArrays(mode, 0, draw_vertex_count);
     check_gl_error("GE primitive draw");
+    if (vid->draw_count_since_present != UINT32_MAX) {
+        vid->draw_count_since_present++;
+    }
+    if (vid->total_draw_count != UINT32_MAX) {
+        vid->total_draw_count++;
+    }
     
     // Clean state
     glBindVertexArray(0);
@@ -1738,23 +1941,26 @@ void mips_video_draw_prim(MIPS_VideoSystem *vid, MIPS_CPU *cpu, MIPS_GraphicsEng
 
 bool mips_video_present(MIPS_VideoSystem *vid) {
     if (vid == NULL || !vid->initialized) return false;
-    mips_video_begin_frame(vid);
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_QUIT) vid->close_requested = true;
     }
     if (vid->close_requested) return true;
+    if (!vid->frame_started && !vid->framebuffer_dirty) return false;
+    mips_video_begin_frame(vid);
 
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, vid->render_framebuffer);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glBlitFramebuffer(0, 0, 960, 544, 0, 0, 960, 544,
+                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    capture_present_backbuffer(vid);
     SDL_GL_SwapWindow(vid->window);
-    
-    // Flush command pipeline [2.3.3][opengles32-quick-reference-card.pdf]
-    if (vid->debug_ge_only) {
-        glClearColor(0.30f, 0.30f, 0.30f, 1.0f);
-    } else {
-        glClearColor(0.12f, 0.12f, 0.14f, 1.0f);
-    }
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    vid->draw_count_since_present = 0;
+    glBindFramebuffer(GL_FRAMEBUFFER, vid->render_framebuffer);
+    glViewport(0, 0, 960, 544);
     vid->frame_started = false;
+    vid->framebuffer_dirty = false;
     return false;
 }
 

@@ -19,6 +19,7 @@ int mips_dispatcher_init(MIPS_Dispatcher *disp) {
     }
 
     disp->fallback_interpreter = NULL; // Must be bound by the interpreter module later
+    disp->service_callback = NULL;
     return 0;
 }
 
@@ -205,6 +206,11 @@ void mips_dispatcher_execute(MIPS_Dispatcher *disp, MIPS_CPU *cpu) {
 
     while (__builtin_expect(!cpu->exit_requested, 1)) {
         dispatch_count++;
+        if (disp->service_callback != NULL &&
+            (dispatch_count & 0x3FFu) == 0) {
+            disp->service_callback(cpu);
+            if (cpu->exit_requested) break;
+        }
         /*
          * Normalize generated AOT control flow before validating the PC.
          * Previously this happened only after the bounds check, so the first
